@@ -3,7 +3,7 @@ from gym.envs.registration import register
 from gym import envs
 
 
-def Register_Ros_Env(task_env, max_episode_steps=10000):
+def Register_Ros_Env(task_env, max_episode_steps=100):
     """
     Registers all the ENVS supported in OpenAI ROS. This way we can load them
     with variable limits.

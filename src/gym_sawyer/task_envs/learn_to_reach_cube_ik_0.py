@@ -1,4 +1,3 @@
-from sre_constants import SUCCESS
 import rospy
 import numpy
 import time
@@ -19,7 +18,7 @@ from tf.transformations import euler_from_quaternion
 from gazebo_msgs.srv import SetModelState
 from gazebo_msgs.msg import ModelState
 
-timestep_limit_per_episode = 10000 # Can be any Value
+timestep_limit_per_episode = 100
 
 register(
         id='SawyerReachCubeIK-v0',
