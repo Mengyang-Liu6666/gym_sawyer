@@ -1,3 +1,4 @@
+from sre_constants import SUCCESS
 import rospy
 import numpy
 import time
@@ -377,16 +378,35 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
     def compute_reward(self, achieved_goal, desired_goal, info):
 
+        success_reward = 0
+        fail_reward = -1000
+        step_reward = -1
+
+        if not isinstance(info, dict):
+            rewards = []
+            for i in range(len(info)):
+
+                done = info[i]["_is_done"]
+                reached = self.reached_block(achieved_goal[i], desired_goal[i])
+                if reached:  # Success
+                    rewards.append(success_reward)
+                elif done:   # Not success but terminated, meaning it fails
+                    rewards.append(fail_reward)
+                else:        # Moving
+                    rewards.append(step_reward)
+                
+            return numpy.array(rewards)
+
         done = info["_is_done"]
-
         reached = self.reached_block(achieved_goal, desired_goal)
-
         if reached:  # Success
-            return 0
+            return success_reward
         elif done:   # Not success but terminated, meaning it fails
-            return -1000
+            return fail_reward
         else:        # Moving
-            return -1
+            return step_reward
+
+        
 
     def _compute_reward(self, observations, info):
         """
