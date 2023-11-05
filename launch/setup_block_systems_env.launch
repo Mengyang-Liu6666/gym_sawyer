@@ -1,0 +1,6 @@
+<launch>
+    <!-- We setup the Odom Publishing of the Block for the training rewarding -->
+    <node pkg="gym_sawyer" name="block_odom_publish_node" type="block_odom_publisher.py" output="screen"/>
+    <!-- We setup the tf Publishing of the Block for the training rewarding -->
+    <node pkg="gym_sawyer" name="block_tf_publish_node" type="block_tf_publisher.py" output="screen"/>
+</launch>
