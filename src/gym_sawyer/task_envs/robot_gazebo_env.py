@@ -66,11 +66,6 @@ class RobotGazeboEnv(gym.Env):
         self._init_env_variables()
         self._update_episode()
         obs = self._get_obs()
-        done = self._is_done(obs)
-        # To support HER
-        info = {
-            "_is_done": done,
-        }
         rospy.logdebug("END Reseting RobotGazeboEnvironment")
         return obs
 
@@ -132,6 +127,7 @@ class RobotGazeboEnv(gym.Env):
             self.gazebo.unpauseSim()
             self.controllers_object.reset_controllers()
             self._check_all_systems_ready()
+            self._init_gripper()
             self.gazebo.pauseSim()
 
         else:
@@ -144,6 +140,7 @@ class RobotGazeboEnv(gym.Env):
             self._random_init_state()
             self.gazebo.unpauseSim()
             self._check_all_systems_ready()
+            self._init_gripper()
             self.gazebo.pauseSim()
 
         rospy.logdebug("RESET SIM END")
@@ -194,4 +191,7 @@ class RobotGazeboEnv(gym.Env):
         raise NotImplementedError()
 
     def _random_init_state(self):
+        raise NotImplementedError()
+
+    def _init_gripper(self):
         raise NotImplementedError()

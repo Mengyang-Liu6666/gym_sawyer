@@ -161,9 +161,6 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         
         self.move_joints_to_angle_blocking(actual_joint_angles_dict, timeout=15.0, threshold=0.008726646)
         self.move_joints_to_angle_blocking(joint_positions_dict_zero, timeout=15.0, threshold=0.008726646)
-            
-        # We open the gripper
-        self.set_g(action="open")
 
         return True
 
@@ -205,6 +202,9 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         return True
 
+    def _init_gripper(self):
+        self.set_g(0) # Open gripper
+        return True
 
     def _init_env_variables(self):
         """
@@ -229,6 +229,8 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                                                                                     end_frame_name="right_electric_gripper_base")
                                                                                      
         self.ik_solvable = True
+
+        
         
 
     def _set_action(self, delta_location):

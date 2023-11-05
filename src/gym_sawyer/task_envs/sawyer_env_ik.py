@@ -216,6 +216,9 @@ class SawyerEnvIK(RobotGazeboEnv):
     
     def _random_init_state(self):
         raise NotImplementedError()
+    
+    def _init_gripper(self):
+        raise NotImplementedError()
         
     # Methods that the TrainingEnvironment will need.
     # ----------------------------
@@ -251,10 +254,12 @@ class SawyerEnvIK(RobotGazeboEnv):
     def set_j(self,joint_name, delta):
         pass
         
-    # Not used
+    # For reset state
     def set_g(self,action):
-        pass
-    
+        if action == 0:
+            self.gripper.open()
+        if action == 1:
+            self.gripper.close()
     
     
     def move_joints_to_angle_blocking(self,joint_positions_dict, timeout=15.0, threshold=0.008726646):
