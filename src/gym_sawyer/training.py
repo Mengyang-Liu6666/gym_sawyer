@@ -4,6 +4,7 @@ import gym
 import numpy as np
 import random
 import time
+import torch
 # import qlearn
 from gym import wrappers
 # ROS packages required
@@ -32,10 +33,12 @@ if __name__ == '__main__':
 
     # Set the logging system
     rospack = rospkg.RosPack()
-    pkg_path = rospack.get_path('my_sawyer_openai_example')
-    outdir = pkg_path + '/training_results'
+    # pkg_path = rospack.get_path('my_sawyer_openai_example')
+    # outdir = pkg_path + '/training_results'
 
     last_time_steps = np.ndarray(0)
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     start_time = time.time()
 
@@ -56,8 +59,10 @@ if __name__ == '__main__':
         replay_buffer_kwargs=dict(
             n_sampled_goal=4,
             goal_selection_strategy=goal_selection_strategy,
+            copy_info_dict=True,
         ),
         verbose=1,
+        device=device,
     )
 
     model.learn(5000)

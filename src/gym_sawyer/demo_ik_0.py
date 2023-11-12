@@ -55,8 +55,8 @@ if __name__ == '__main__':
 
     # Set the logging system
     rospack = rospkg.RosPack()
-    pkg_path = rospack.get_path('my_sawyer_openai_example')
-    outdir = pkg_path + '/training_results'
+    # pkg_path = rospack.get_path('my_sawyer_openai_example')
+    # outdir = pkg_path + '/training_results'
     # env = wrappers.Monitor(env, outdir, force=True)
     # rospy.loginfo("Monitor Wrapper started")
 
