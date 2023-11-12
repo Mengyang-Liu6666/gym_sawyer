@@ -11,4 +11,3 @@ A ROS package that connects Sawyer Robotic Arm in Gazebo to OpenAI Gym
     *   `cd ~/ros_ws`
     *   `source devel/setup.bash`
     *   `catkin_make`
-    *   `rosdep install gym_sawyer`
