@@ -19,7 +19,7 @@ A ROS package that connects Sawyer Robotic Arm in Gazebo to OpenAI Gym
     *   `cd ros_ws`
     *   `./intera.sh sim`
     *   `roslaunch gym_sawyer learn_to_touch_cube.launch`
-        *   `roslaunch gym_sawyer learn_to_touch_cube_no_gui.launch` for no GUI.
+        *   `roslaunch gym_sawyer learn_to_touch_cube.launch gui:=false` for no GUI.
 
 *   Run the following in terminal 2 (publish nodes for blocks):
     *   `cd ros_ws`
