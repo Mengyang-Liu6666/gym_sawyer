@@ -40,6 +40,8 @@ if __name__ == '__main__':
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+    rospy.logerr("Running on " + str(device))
+
     start_time = time.time()
 
     rospy.logdebug("Start Training")

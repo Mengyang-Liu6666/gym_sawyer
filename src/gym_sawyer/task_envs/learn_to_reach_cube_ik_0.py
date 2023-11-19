@@ -69,7 +69,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         
         self.time_step = 0.25 # in seconds, size of discrete time.
 
-        self.max_joint_move_per_step = 0.1 # in rad, maximum angle for each joint to move in each step
+        self.max_joint_move_per_step = 1.0 # in rad, maximum angle for each joint to move in each step
 
 
         # We place the Maximum and minimum values of observations
