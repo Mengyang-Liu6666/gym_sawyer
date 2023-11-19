@@ -166,6 +166,11 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         self.move_joints_to_angle_blocking(actual_joint_angles_dict, timeout=15.0, threshold=0.008726646)
         self.move_joints_to_angle_blocking(joint_positions_dict_zero, timeout=15.0, threshold=0.008726646)
 
+        self.set_g(0)
+
+        self.set_j([0, 0, 0, 0, 0, np.pi*0.5, np.pi*0.5])
+
+
         return True
 
     def _random_init_state(self):

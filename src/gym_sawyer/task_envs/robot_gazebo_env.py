@@ -129,7 +129,7 @@ class RobotGazeboEnv(gym.Env):
             self.gazebo.unpauseSim()
             self.controllers_object.reset_controllers()
             self._check_all_systems_ready()
-            self._init_gripper()
+            # self._init_gripper()
             self.gazebo.pauseSim()
 
         else:
@@ -142,7 +142,7 @@ class RobotGazeboEnv(gym.Env):
             self._random_init_state()
             self.gazebo.unpauseSim()
             self._check_all_systems_ready()
-            self._init_gripper()
+            # self._init_gripper()
             self.gazebo.pauseSim()
 
         rospy.logdebug("RESET SIM END")

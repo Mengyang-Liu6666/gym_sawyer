@@ -249,10 +249,14 @@ class SawyerEnvIK(RobotGazeboEnv):
                 self.gripper.calibrate()
             elif not gripper_action == 0:
                 rospy.logerr("INVALID action for gripper: %d" %(gripper_action))
-
-    # Not used                    
-    def set_j(self,joint_name, delta):
-        pass
+                    
+    def set_j(self, delta_angles):
+        joint_angles = self.get_all_limb_joint_angles()
+        i = 0
+        for k in joint_angles.keys():
+            joint_angles[k] += delta_angles[i]
+            i += 1
+        self.limb.move_to_joint_positions(joint_angles, timeout=5)
         
     # For reset state
     def set_g(self,action):
