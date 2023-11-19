@@ -18,7 +18,7 @@ from tf.transformations import euler_from_quaternion
 from gazebo_msgs.srv import SetModelState
 from gazebo_msgs.msg import ModelState
 
-timestep_limit_per_episode = 100
+timestep_limit_per_episode = 50
 
 register(
         id='SawyerReachCubeIK-v0',
@@ -55,7 +55,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         self.work_space_y_max = 0.75 # rospy.get_param("/sawyer/work_space/y_max")
         self.work_space_y_min = -0.75 # rospy.get_param("/sawyer/work_space/y_min")
         self.work_space_z_max = 0.65 # rospy.get_param("/sawyer/work_space/z_max")
-        self.work_space_z_min = -0.129 # rospy.get_param("/sawyer/work_space/z_min")
+        self.work_space_z_min = 0.01 # rospy.get_param("/sawyer/work_space/z_min")
         
         self.max_effort = 50 # rospy.get_param("/sawyer/max_effort")
         
