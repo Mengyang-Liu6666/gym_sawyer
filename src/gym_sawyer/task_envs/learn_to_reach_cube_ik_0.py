@@ -54,8 +54,8 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         self.work_space_x_min = 0.0 # rospy.get_param("/sawyer/work_space/x_min")
         self.work_space_y_max = 0.75 # rospy.get_param("/sawyer/work_space/y_max")
         self.work_space_y_min = -0.75 # rospy.get_param("/sawyer/work_space/y_min")
-        self.work_space_z_max = 1.3 # rospy.get_param("/sawyer/work_space/z_max")
-        self.work_space_z_min = 0.3 # rospy.get_param("/sawyer/work_space/z_min")
+        self.work_space_z_max = 0.65 # rospy.get_param("/sawyer/work_space/z_max")
+        self.work_space_z_min = -0.129 # rospy.get_param("/sawyer/work_space/z_min")
         
         self.max_effort = 50 # rospy.get_param("/sawyer/max_effort")
         
@@ -68,6 +68,8 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         self.noise_std = 0.01 # unit in meters, 95% chance the noise will be in (-2*std, 2*std)
         
         self.time_step = 0.25 # in seconds, size of discrete time.
+
+        self.max_joint_move_per_step = 0.1 # in rad, maximum angle for each joint to move in each step
 
 
         # We place the Maximum and minimum values of observations
@@ -109,8 +111,8 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                                       self.work_space_y_max, 
                                       self.work_space_z_max])
         
-        self.block_space_min = np.array([0.55, -0.4, 0.0])
-        self.block_space_max = np.array([0.85, 0.35, 2.0])
+        self.block_space_min = np.array([0.55, -0.4, -1.0])
+        self.block_space_max = np.array([0.85, 0.35, 1.5])
 
         obs_space_dict = OrderedDict()
         obs_space_dict["observation"] = spaces.Box(joint_angle_min, joint_angle_max)
@@ -232,6 +234,8 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                                                                                      
         self.ik_solvable = True
 
+        self.joint_too_fast = False
+
         
         
 
@@ -263,17 +267,26 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             # rospy.logerr("NO IK SOLUTION for pose: %s" %(ik_pose))
             self.ik_solvable = False
         else:
-            # rospy.loginfo("move to pose: ", ik_pose)
-            action_tuple = (joint_angles, 0) # no action on gripper
+            current_joint_angles = self.get_all_limb_joint_angles()
+            for k in joint_angles.keys():
+                delta_angle = joint_angles[k] - current_joint_angles[k]
+                if abs(delta_angle) > self.max_joint_move_per_step:
+                    self.joint_too_fast = True
+                    rospy.logerr("[Done]: Joint moving too fast: " + k)
+                    break
 
-            # We tell sawyer the action to perform
-            self.execute_movement(action_tuple)
+            if not self.joint_too_fast:
+                # rospy.loginfo("move to pose: ", ik_pose)
+                action_tuple = (joint_angles, 0) # no action on gripper
 
-            action_end_time = time.perf_counter()
+                # We tell sawyer the action to perform
+                self.execute_movement(action_tuple)
 
-            time_spent = action_end_time - action_start_time
+                action_end_time = time.perf_counter()
 
-            rospy.sleep(self.time_step - time_spent)
+                time_spent = action_end_time - action_start_time
+
+                rospy.sleep(self.time_step - time_spent)
 
         
         
@@ -309,10 +322,11 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         # Add noise
 
         noise = np.random.normal(loc=0.0, scale=self.noise_std, size=(1, 3))[0]
+        target_location_array = np.array(target_location)
+        target_location_array[2] = target_location_array[2] - 0.93
         # rospy.logwarn("target_location is: " + str(target_location))
-        noised_target = noise + np.array(target_location)
+        noised_target = noise + target_location_array
         clipped_noised_target = np.clip(noised_target, self.block_space_min, self.block_space_max)
-        clipped_noised_target[2] -= 0.93 # shift by magnitude of height
 
         observation = {
                 "observation": joints_angles_array,
@@ -372,6 +386,8 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             return True
         if has_reached_the_block:
             rospy.logerr("[Done]: Target is reached!")
+            return True
+        if self.joint_too_fast:
             return True
         if not(self.ik_solvable):
             return True

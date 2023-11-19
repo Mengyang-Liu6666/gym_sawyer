@@ -54,6 +54,8 @@ class RobotGazeboEnv(gym.Env):
         }
         reward = self._compute_reward(obs, info)
         self.cumulated_episode_reward += reward
+        if done:
+            rospy.logerr("Cumulative reward: " + str(self.cumulated_episode_reward))
 
         rospy.logdebug("END STEP OpenAIROS")
 
