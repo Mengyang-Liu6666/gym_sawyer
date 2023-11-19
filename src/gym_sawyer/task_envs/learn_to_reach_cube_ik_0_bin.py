@@ -356,15 +356,15 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         return observation
     
     def _get_info(self, done, init_obs, last_obs):
-        total_dist = np.linalg.norm(init_obs["achieved_goal"] - init_obs["desired_goal"])
-        last_dist = np.linalg.norm(last_obs["achieved_goal"] - last_obs["desired_goal"])
+        total_length = np.linalg.norm(init_obs["achieved_goal"] - init_obs["desired_goal"])
+        last_length = np.linalg.norm(last_obs["achieved_goal"] - last_obs["desired_goal"])
         info = {
             "_is_done": done,
-            "total_dist": total_dist,
-            "last_dist": last_dist,
+            "total_length": total_length,
+            "last_length": last_length,
         }
         return info
-    
+
     def _is_done(self, observations):
         """
         We consider the episode done if:
@@ -416,19 +416,11 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
     # Used for HER
 
-    def compute_step_reward(self, current_dist, last_dist, total_dist, total_step_reward=50.0, away_penalty_mult=2.0):
-        delta_dist = last_dist - current_dist
-        if delta_dist < 0:
-            delta_dist = delta_dist * away_penalty_mult
-        norm_delta_dist = delta_dist / total_dist
-        return norm_delta_dist * total_step_reward
-
     def compute_reward(self, achieved_goal, desired_goal, info):
 
         success_reward = 200
         fail_reward = -1000
-        total_step_reward = 50.0
-        away_penalty_mult = 2.0 # set > 1
+        step_reward = -1
 
         if not isinstance(info, dict):
             rewards = []
@@ -441,10 +433,6 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                 elif done:   # Not success but terminated, meaning it fails
                     rewards.append(fail_reward)
                 else:        # Moving
-                    current_dist = np.linalg.norm(achieved_goal[i] - desired_goal[i])
-                    last_dist = info[i]["last_dist"]
-                    total_dist = info[i]["total_dist"]
-                    step_reward = self.compute_step_reward(current_dist, last_dist, total_dist, total_step_reward, away_penalty_mult)
                     rewards.append(step_reward)
                 
             return np.array(rewards)
@@ -456,12 +444,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         elif done:   # Not success but terminated, meaning it fails
             return fail_reward
         else:        # Moving
-            current_dist = np.linalg.norm(achieved_goal - desired_goal)
-            last_dist = info["last_dist"]
-            total_dist = info["total_dist"]
-            step_reward = self.compute_step_reward(current_dist, last_dist, total_dist, total_step_reward, away_penalty_mult)
             return step_reward
-
 
         
 

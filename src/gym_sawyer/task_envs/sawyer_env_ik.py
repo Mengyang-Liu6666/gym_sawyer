@@ -208,6 +208,9 @@ class SawyerEnvIK(RobotGazeboEnv):
 
     def _get_obs(self):
         raise NotImplementedError()
+    
+    def _get_info(self, done, init_obs, last_obs):
+        raise NotImplementedError()
 
     def _is_done(self, observations):
         """Checks if episode done based on observations given.
