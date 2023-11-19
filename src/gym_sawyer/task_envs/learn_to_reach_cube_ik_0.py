@@ -1,5 +1,5 @@
 import rospy
-import numpy
+import numpy as np
 import time
 
 from collections import OrderedDict
@@ -48,26 +48,26 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         
         
         # We set the reward range, which is not compulsory but here we do it.
-        self.reward_range = (-numpy.inf, numpy.inf)
+        self.reward_range = (-np.inf, np.inf)
         
-        self.work_space_x_max = rospy.get_param("/sawyer/work_space/x_max")
-        self.work_space_x_min = rospy.get_param("/sawyer/work_space/x_min")
-        self.work_space_y_max = rospy.get_param("/sawyer/work_space/y_max")
-        self.work_space_y_min = rospy.get_param("/sawyer/work_space/y_min")
-        self.work_space_z_max = rospy.get_param("/sawyer/work_space/z_max")
-        self.work_space_z_min = rospy.get_param("/sawyer/work_space/z_min")
+        self.work_space_x_max = 1.1 # rospy.get_param("/sawyer/work_space/x_max")
+        self.work_space_x_min = 0.0 # rospy.get_param("/sawyer/work_space/x_min")
+        self.work_space_y_max = 0.75 # rospy.get_param("/sawyer/work_space/y_max")
+        self.work_space_y_min = -0.75 # rospy.get_param("/sawyer/work_space/y_min")
+        self.work_space_z_max = 1.3 # rospy.get_param("/sawyer/work_space/z_max")
+        self.work_space_z_min = 0.3 # rospy.get_param("/sawyer/work_space/z_min")
         
-        self.max_effort = rospy.get_param("/sawyer/max_effort")
+        self.max_effort = 50 # rospy.get_param("/sawyer/max_effort")
         
-        self.dec_obs = rospy.get_param("/sawyer/number_decimals_precision_obs")
+        self.dec_obs = 1 # rospy.get_param("/sawyer/number_decimals_precision_obs")
         
-        self.acceptable_distance_to_cube = rospy.get_param("/sawyer/acceptable_distance_to_cube")
+        self.acceptable_distance_to_cube = 0.16 # rospy.get_param("/sawyer/acceptable_distance_to_cube")
         
-        self.tcp_z_position_min = rospy.get_param("/sawyer/tcp_z_position_min")
+        self.tcp_z_position_min = 0.83 # rospy.get_param("/sawyer/tcp_z_position_min")
 
         self.noise_std = 0.01 # unit in meters, 95% chance the noise will be in (-2*std, 2*std)
         
-        self.time_step = 0.1 # in seconds, size of discrete time.
+        self.time_step = 0.25 # in seconds, size of discrete time.
 
 
         # We place the Maximum and minimum values of observations
@@ -83,42 +83,44 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         # We fetch the limits of the joinst to get the effort and angle limits
         self.joint_limits = self.init_joint_limits()
         
-        joint_angle_max = numpy.array([ 
+        joint_angle_max = np.array([ 
+                                        self.joint_limits.position_upper[1],
                                         self.joint_limits.position_upper[3],
                                         self.joint_limits.position_upper[4],
                                         self.joint_limits.position_upper[5],
                                         self.joint_limits.position_upper[6],
                                         self.joint_limits.position_upper[7],
-                                        self.joint_limits.position_upper[8],
-                                        self.joint_limits.position_upper[9]])
+                                        self.joint_limits.position_upper[8]])
                                         
-        joint_angle_min = numpy.array([ 
+        joint_angle_min = np.array([ 
+                                        self.joint_limits.position_lower[1],
                                         self.joint_limits.position_lower[3],
                                         self.joint_limits.position_lower[4],
                                         self.joint_limits.position_lower[5],
                                         self.joint_limits.position_lower[6],
                                         self.joint_limits.position_lower[7],
-                                        self.joint_limits.position_lower[8],
-                                        self.joint_limits.position_lower[9]])
+                                        self.joint_limits.position_lower[8]])
         
-        work_space_min = numpy.array([self.work_space_x_min, 
+        work_space_min = np.array([self.work_space_x_min, 
                                       self.work_space_y_min, 
                                       self.work_space_z_min])
         
-        work_space_max = numpy.array([self.work_space_x_max, 
+        work_space_max = np.array([self.work_space_x_max, 
                                       self.work_space_y_max, 
                                       self.work_space_z_max])
+        
+        self.block_space_min = np.array([0.55, -0.4, 0.0])
+        self.block_space_max = np.array([0.85, 0.35, 2.0])
 
         obs_space_dict = OrderedDict()
         obs_space_dict["observation"] = spaces.Box(joint_angle_min, joint_angle_max)
         obs_space_dict["achieved_goal"] = spaces.Box(work_space_min, work_space_max)
-        obs_space_dict["desired_goal"] = spaces.Box(numpy.array([-numpy.inf, -numpy.inf, -numpy.inf]), 
-                                           numpy.array([numpy.inf, numpy.inf, numpy.inf]))
+        obs_space_dict["desired_goal"] = spaces.Box(self.block_space_min, self.block_space_max)
 
         self.observation_space = spaces.Dict(obs_space_dict)
 
-        action_space_min = numpy.array([-0.1, -0.1, -0.1])
-        action_space_max = numpy.array([+0.1, +0.1, +0.1])
+        action_space_min = np.array([-0.1, -0.1, -0.1])
+        action_space_max = np.array([+0.1, +0.1, +0.1])
 
         self.action_space = spaces.Box(action_space_min, action_space_max)
         
@@ -175,12 +177,12 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
             # Define the new state of the model
 
-            # x in [0.55, 1.3]
+            # x in [0.55, 0.85]
             # y in [-0.4, 0.35]
             model_state = ModelState()
             model_state.model_name = 'block'
-            model_state.pose.position.x = numpy.random.uniform(0.55, 1.3)
-            model_state.pose.position.y = numpy.random.uniform(-0.4, 0.35)
+            model_state.pose.position.x = np.random.uniform(self.block_space_min[0], self.block_space_max[0])
+            model_state.pose.position.y = np.random.uniform(self.block_space_min[1], self.block_space_max[1])
             model_state.pose.position.z = 0.773 # Fixed
 
             model_state.pose.orientation.x = 0.0
@@ -294,11 +296,11 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
   right_j2, right_j3, right_j4, right_j5, right_j6
         """
 
-        joints_angles_array = numpy.array(list(self.get_all_limb_joint_angles().values()))
+        joints_angles_array = np.array(list(self.get_all_limb_joint_angles().values()))
 
         # Achieved Goal
 
-        endpoint_location = numpy.array(self.get_limb_endpoint_pose()["position"])
+        endpoint_location = np.array(self.get_limb_endpoint_pose()["position"])
 
         # Desired Goal
 
@@ -306,14 +308,16 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                                                                                     end_frame_name="block")
         # Add noise
 
-        noise = numpy.random.normal(loc=0.0, scale=self.noise_std, size=(1, 3))[0]
+        noise = np.random.normal(loc=0.0, scale=self.noise_std, size=(1, 3))[0]
         # rospy.logwarn("target_location is: " + str(target_location))
-        noised_target = noise + numpy.array(target_location)
+        noised_target = noise + np.array(target_location)
+        clipped_noised_target = np.clip(noised_target, self.block_space_min, self.block_space_max)
+        clipped_noised_target[2] -= 0.93 # shift by magnitude of height
 
         observation = {
                 "observation": joints_angles_array,
                 "achieved_goal": endpoint_location,
-                "desired_goal": noised_target,
+                "desired_goal": clipped_noised_target,
             }
 
 
@@ -360,24 +364,30 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         has_reached_the_block = self.reached_block(achieved_goal, desired_goal)
 
         # IK included
+        if is_stuck:
+            rospy.logerr("[Done]: arm is stuck.")
+            return True
+        if not(is_inside_workspace):
+            rospy.logerr("[Done]: Arm outside workspace.")
+            return True
+        if has_reached_the_block:
+            rospy.logerr("[Done]: Target is reached!")
+            return True
+        if not(self.ik_solvable):
+            return True
+        else:
+            return False
+
+
+        # done = is_stuck or not(is_inside_workspace) or has_reached_the_block or not(self.ik_solvable)
         
-        done = is_stuck or not(is_inside_workspace) or has_reached_the_block or not(self.ik_solvable)
-        
-        rospy.logdebug("#### IS DONE ? ####")
-        rospy.logdebug("is_stuck ?="+str(is_stuck))
-        rospy.logdebug("Not is_inside_workspace ?="+str(not(is_inside_workspace)))
-        rospy.logdebug("has_reached_the_block ?="+str(has_reached_the_block))
-        rospy.logdebug("ik_solvable ?="+str(self.ik_solvable))
-        rospy.logdebug("done ?="+str(done))
-        rospy.logdebug("#### #### ####")
-        
-        return done
+        # return done
 
     # Used for HER
 
     def compute_reward(self, achieved_goal, desired_goal, info):
 
-        success_reward = 0
+        success_reward = 200
         fail_reward = -1000
         step_reward = -1
 
@@ -394,7 +404,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                 else:        # Moving
                     rewards.append(step_reward)
                 
-            return numpy.array(rewards)
+            return np.array(rewards)
 
         done = info["_is_done"]
         reached = self.reached_block(achieved_goal, desired_goal)
@@ -468,7 +478,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         
         reached_block_b = False
         
-        distance_to_block = numpy.linalg.norm(achieved_goal - desired_goal)
+        distance_to_block = np.linalg.norm(achieved_goal - desired_goal)
         
         tcp_z_pos_ok = achieved_goal[2] >= self.tcp_z_position_min
         distance_ok = distance_to_block <= self.acceptable_distance_to_cube
@@ -503,10 +513,10 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         :param p_end:
         :return:
         """
-        a = numpy.array((pstart.x, pstart.y, pstart.z))
-        b = numpy.array((p_end.x, p_end.y, p_end.z))
+        a = np.array((pstart.x, pstart.y, pstart.z))
+        b = np.array((p_end.x, p_end.y, p_end.z))
     
-        distance = numpy.linalg.norm(a - b)
+        distance = np.linalg.norm(a - b)
     
         return distance
     
@@ -518,11 +528,11 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         :param p_end:
         :return:
         """
-        a = numpy.array((   translation_vector.x,
+        a = np.array((   translation_vector.x,
                             translation_vector.y,
                             translation_vector.z))
         
-        distance = numpy.linalg.norm(a)
+        distance = np.linalg.norm(a)
     
         return distance
         
