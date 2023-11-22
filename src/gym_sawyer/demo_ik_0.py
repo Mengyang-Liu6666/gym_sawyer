@@ -13,21 +13,31 @@ import rospkg
 # NEED MODIFICATIONS =========================
 
 from gym_sawyer.openai_ros_common import Start_ROS_Environment
+from stable_baselines3 import DDPG
 
 global FREQUENCY 
 FREQUENCY = 100 # Defaults to 100Hz command rate
-
+global ROUNDING_DEC
+ROUNDING_DEC = 6
 def random_walk(t):
     # x-axis: front-back
     # y-axis: left-right
     # z-axis: up-down
 
     # y = 0.2 * (2 * random.randint(0, 1) - 1)
-    y = 0.1
+    y = 0.0
     x = 0.0
-    z = 0.0
+    z = -0.01
     return [x, y, z]
 
+def policy(obs, t, trivial):
+    if trivial:
+        return random_walk(t)
+    else:
+        filename = ""
+        model = DDPG.load(filename)
+        action, _states = model.predict(obs)
+        return action
 
 if __name__ == '__main__':
 
@@ -107,7 +117,7 @@ if __name__ == '__main__':
 
             # Warm up action
 
-            action = random_walk(i)
+            action = policy(observation, i, trivial=True)
 
             rospy.logwarn("Next action is: %s", str(action[0]))
 
@@ -117,9 +127,9 @@ if __name__ == '__main__':
             # Logging
             cumulated_reward += reward
 
-            rospy.logwarn("# Joint angles: " + str(np.round(observation["observation"], decimals = 2)))
-            rospy.logwarn("# End-effector location: " + str(np.round(observation["achieved_goal"], decimals = 2)))
-            rospy.logwarn("# Goal location with noise: " + str(np.round(observation["desired_goal"], decimals = 2)))
+            rospy.logwarn("# Joint angles: " + str(np.round(observation["observation"], decimals = ROUNDING_DEC)))
+            rospy.logwarn("# End-effector location: " + str(np.round(observation["achieved_goal"], decimals = ROUNDING_DEC)))
+            rospy.logwarn("# Goal location with noise: " + str(np.round(observation["desired_goal"], decimals = ROUNDING_DEC)))
             rospy.logwarn("# action that we took=>" + str(action))
             rospy.logwarn("# reward that action gave=>" + str(reward))
             rospy.logwarn("# episode cumulated_reward=>" +
