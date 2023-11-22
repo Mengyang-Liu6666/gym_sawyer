@@ -73,7 +73,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         
         self.tcp_z_position_min = 0.83 # rospy.get_param("/sawyer/tcp_z_position_min")
 
-        self.noise_std = 0.0001 # unit in meters, 95% chance the noise will be in (-2*std, 2*std)
+        self.noise_std = 0.01 # unit in meters, 95% chance the noise will be in (-2*std, 2*std)
         
         self.time_step = 0.25 # in seconds, size of discrete time.
 
@@ -198,10 +198,10 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             model_state.model_name = 'block'
             # model_state.pose.position.x = 0.7
             # model_state.pose.position.y = -0.025
-            model_state.pose.position.x = 0.86417 # 0.86417
-            model_state.pose.position.y = 0.206706 # 0.206706
-            # model_state.pose.position.x = np.random.uniform(self.block_space_min[0], self.block_space_max[0])
-            # model_state.pose.position.y = np.random.uniform(self.block_space_min[1], self.block_space_max[1])
+            # model_state.pose.position.x = 0.86417 # 0.86417
+            # model_state.pose.position.y = 0.206706 # 0.206706
+            model_state.pose.position.x = np.random.uniform(self.block_space_min[0], self.block_space_max[0])
+            model_state.pose.position.y = np.random.uniform(self.block_space_min[1], self.block_space_max[1])
             model_state.pose.position.z = 0.773 # Fixed
 
             model_state.pose.orientation.x = 0.0
@@ -491,11 +491,11 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         true_loc = info["true_loc"]
         true_goal = info["true_goal"]
 
-        rospy.logerr("current_dist: " + str(current_dist))
-        rospy.logerr("last_dist: " + str(last_dist))
-        rospy.logerr("total_dist: " + str(total_dist))
-        rospy.logerr("true_loc: " + str(true_loc))
-        rospy.logerr("true_goal: " + str(true_goal))
+        # rospy.logerr("current_dist: " + str(current_dist))
+        # rospy.logerr("last_dist: " + str(last_dist))
+        # rospy.logerr("total_dist: " + str(total_dist))
+        # rospy.logerr("true_loc: " + str(true_loc))
+        # rospy.logerr("true_goal: " + str(true_goal))
 
         if reached:  # Success
             return success_reward

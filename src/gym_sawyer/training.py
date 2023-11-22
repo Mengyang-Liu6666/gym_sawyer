@@ -16,6 +16,8 @@ from gym_sawyer.openai_ros_common import Start_ROS_Environment
 # Stable Baselines
 from stable_baselines3 import HerReplayBuffer, DDPG, DQN, SAC, TD3
 from stable_baselines3.her.goal_selection_strategy import GoalSelectionStrategy
+from stable_baselines3.common.noise import NormalActionNoise
+from stable_baselines3.common.callbacks import CheckpointCallback
 
 if __name__ == '__main__':
 
@@ -50,9 +52,10 @@ if __name__ == '__main__':
 
     # Configure training
 
-    model_class = DDPG
+    # model_class = DDPG
 
     # Initialize the model
+    '''
     model = model_class(
         "MultiInputPolicy",
         env,
@@ -66,10 +69,23 @@ if __name__ == '__main__':
         verbose=1,
         device=device,
     )
+    '''
 
-    model.learn(5000)
+    n_actions = env.action_space.shape[-1]
+    action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions))
 
-    model.save("./her_ddpg_env")
+    model = DDPG("MultiInputPolicy", env, action_noise=action_noise, verbose=1)
+
+    checkpoint_callback = CheckpointCallback(
+        save_freq=5000,
+        save_path="./logs/",
+        name_prefix="ddpg_fixed_1120",
+        save_replay_buffer=False,
+        save_vecnormalize=True,
+    )
+
+    model.learn(150000)
+
+    model.save("./ddpg_fixed_env")
 
     env.close()
-
