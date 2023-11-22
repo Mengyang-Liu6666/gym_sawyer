@@ -19,6 +19,7 @@ global FREQUENCY
 FREQUENCY = 100 # Defaults to 100Hz command rate
 global ROUNDING_DEC
 ROUNDING_DEC = 6
+
 def random_walk(t):
     # x-axis: front-back
     # y-axis: left-right

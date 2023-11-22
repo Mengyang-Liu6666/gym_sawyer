@@ -17,7 +17,10 @@ from gym_sawyer.openai_ros_common import Start_ROS_Environment
 from stable_baselines3 import HerReplayBuffer, DDPG, DQN, SAC, TD3
 from stable_baselines3.her.goal_selection_strategy import GoalSelectionStrategy
 from stable_baselines3.common.noise import NormalActionNoise
+
 from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.callbacks import CallbackList
 
 if __name__ == '__main__':
 
@@ -84,7 +87,17 @@ if __name__ == '__main__':
         save_vecnormalize=True,
     )
 
-    model.learn(150000)
+    eval_callback = EvalCallback(
+        env, 
+        best_model_save_path="./logs/",
+        log_path="./logs/",
+        eval_freq=500,
+        deterministic=True,
+        render=False)
+
+    callback_list = CallbackList([checkpoint_callback, eval_callback])
+
+    model.learn(150000, callback=callback_list)
 
     model.save("./ddpg_fixed_env")
 
