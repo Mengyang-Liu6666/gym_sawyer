@@ -55,17 +55,25 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         self.work_space_y_max = 0.75 # rospy.get_param("/sawyer/work_space/y_max")
         self.work_space_y_min = -0.75 # rospy.get_param("/sawyer/work_space/y_min")
         self.work_space_z_max = 0.65 # rospy.get_param("/sawyer/work_space/z_max")
-        self.work_space_z_min = 0.01 # rospy.get_param("/sawyer/work_space/z_min")
+        self.work_space_z_min = -0.024 # rospy.get_param("/sawyer/work_space/z_min")
         
         self.max_effort = 50 # rospy.get_param("/sawyer/max_effort")
         
         self.dec_obs = 1 # rospy.get_param("/sawyer/number_decimals_precision_obs")
         
-        self.acceptable_distance_to_cube = 0.16 # rospy.get_param("/sawyer/acceptable_distance_to_cube")
+        # self.acceptable_distance_to_cube = 0.05 # rospy.get_param("/sawyer/acceptable_distance_to_cube")
+
+        # detect reaching goal
+
+        self.tol_x = 0.015
+
+        self.tol_y = 0.015
+
+        self.tol_z = 0.01
         
         self.tcp_z_position_min = 0.83 # rospy.get_param("/sawyer/tcp_z_position_min")
 
-        self.noise_std = 0.01 # unit in meters, 95% chance the noise will be in (-2*std, 2*std)
+        self.noise_std = 0.0001 # unit in meters, 95% chance the noise will be in (-2*std, 2*std)
         
         self.time_step = 0.25 # in seconds, size of discrete time.
 
@@ -188,8 +196,12 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             # y in [-0.4, 0.35]
             model_state = ModelState()
             model_state.model_name = 'block'
-            model_state.pose.position.x = np.random.uniform(self.block_space_min[0], self.block_space_max[0])
-            model_state.pose.position.y = np.random.uniform(self.block_space_min[1], self.block_space_max[1])
+            # model_state.pose.position.x = 0.7
+            # model_state.pose.position.y = -0.025
+            model_state.pose.position.x = 0.86417 # 0.86417
+            model_state.pose.position.y = 0.206706 # 0.206706
+            # model_state.pose.position.x = np.random.uniform(self.block_space_min[0], self.block_space_max[0])
+            # model_state.pose.position.y = np.random.uniform(self.block_space_min[1], self.block_space_max[1])
             model_state.pose.position.z = 0.773 # Fixed
 
             model_state.pose.orientation.x = 0.0
@@ -328,7 +340,9 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         noise = np.random.normal(loc=0.0, scale=self.noise_std, size=(1, 3))[0]
         target_location_array = np.array(target_location)
-        target_location_array[2] = target_location_array[2] - 0.93
+        # target_location_array[0] = target_location_array[0] + 0.03
+        # target_location_array[1] = target_location_array[1] + 0.03
+        # target_location_array[2] = target_location_array[2] + 0.03 - 0.93
         # rospy.logwarn("target_location is: " + str(target_location))
         noised_target = noise + target_location_array
         clipped_noised_target = np.clip(noised_target, self.block_space_min, self.block_space_max)
@@ -355,15 +369,31 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         return observation
     
-    def _get_info(self, done, init_obs, last_obs):
-        total_dist = np.linalg.norm(init_obs["achieved_goal"] - init_obs["desired_goal"])
-        last_dist = np.linalg.norm(last_obs["achieved_goal"] - last_obs["desired_goal"])
+    def _get_info(self, done, total_dist, last_dist):
+        true_dist, true_loc, true_goal = self._get_state()
         info = {
             "_is_done": done,
-            "total_dist": total_dist,
+            "true_dist": true_dist,
             "last_dist": last_dist,
+            "total_dist": total_dist,
+            "true_loc": true_loc,
+            "true_goal": true_goal,
         }
         return info
+    
+    def _get_state(self):
+        left_finger, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_gripper_l_finger")
+        right_finger, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_gripper_r_finger")
+        true_loc = (np.array(left_finger) + np.array(right_finger)) * 0.5 + np.array([-0.024, -0.024, 0.838066])
+
+        # true_loc, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_l6")
+        # true_loc = np.array(true_loc) + np.array([0, 0, 0])
+
+        true_goal, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="block")
+        true_goal = np.array(true_goal)
+
+        true_dist = np.linalg.norm(true_loc - true_goal)
+        return true_dist, true_loc, true_goal
     
     def _is_done(self, observations):
         """
@@ -389,8 +419,10 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         achieved_goal = observations["achieved_goal"]
         desired_goal = observations["desired_goal"]
+
+        true_dist, true_loc, true_goal = self._get_state()
         
-        has_reached_the_block = self.reached_block(achieved_goal, desired_goal)
+        has_reached_the_block = self.reached_block(achieved_goal, true_dist, true_loc, true_goal)
 
         # IK included
         if is_stuck:
@@ -421,6 +453,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         if delta_dist < 0:
             delta_dist = delta_dist * away_penalty_mult
         norm_delta_dist = delta_dist / total_dist
+
         return norm_delta_dist * total_step_reward
 
     def compute_reward(self, achieved_goal, desired_goal, info):
@@ -435,13 +468,13 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             for i in range(len(info)):
 
                 done = info[i]["_is_done"]
-                reached = self.reached_block(achieved_goal[i], desired_goal[i])
+                reached = self.reached_block(achieved_goal[i], info[i]["true_dist"], info[i]["true_loc"], info[i]["true_goal"])
                 if reached:  # Success
                     rewards.append(success_reward)
                 elif done:   # Not success but terminated, meaning it fails
                     rewards.append(fail_reward)
                 else:        # Moving
-                    current_dist = np.linalg.norm(achieved_goal[i] - desired_goal[i])
+                    current_dist = info[i]["true_dist"]
                     last_dist = info[i]["last_dist"]
                     total_dist = info[i]["total_dist"]
                     step_reward = self.compute_step_reward(current_dist, last_dist, total_dist, total_step_reward, away_penalty_mult)
@@ -450,16 +483,30 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             return np.array(rewards)
 
         done = info["_is_done"]
-        reached = self.reached_block(achieved_goal, desired_goal)
+        reached = self.reached_block(achieved_goal, info["true_dist"], info["true_loc"], info["true_goal"])
+
+        current_dist = info["true_dist"]
+        last_dist = info["last_dist"]
+        total_dist = info["total_dist"]
+        true_loc = info["true_loc"]
+        true_goal = info["true_goal"]
+
+        rospy.logerr("current_dist: " + str(current_dist))
+        rospy.logerr("last_dist: " + str(last_dist))
+        rospy.logerr("total_dist: " + str(total_dist))
+        rospy.logerr("true_loc: " + str(true_loc))
+        rospy.logerr("true_goal: " + str(true_goal))
+
         if reached:  # Success
             return success_reward
         elif done:   # Not success but terminated, meaning it fails
             return fail_reward
         else:        # Moving
-            current_dist = np.linalg.norm(achieved_goal - desired_goal)
+            current_dist = info["true_dist"]
             last_dist = info["last_dist"]
             total_dist = info["total_dist"]
             step_reward = self.compute_step_reward(current_dist, last_dist, total_dist, total_step_reward, away_penalty_mult)
+
             return step_reward
 
 
@@ -517,7 +564,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         return is_arm_stuck
     
     
-    def reached_block(self, achieved_goal, desired_goal):
+    def reached_block(self, achieved_goal, true_dist, true_loc, true_goal):
         """
         It return True if the transform TCP to block vector magnitude is smaller than
         the minimum_distance.
@@ -525,11 +572,13 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         """
         
         reached_block_b = False
+        distance_ok = False
+
+        #tcp_z_pos_ok = achieved_goal[2] >= self.tcp_z_position_min
+        tcp_z_pos_ok = True
         
-        distance_to_block = np.linalg.norm(achieved_goal - desired_goal)
-        
-        tcp_z_pos_ok = achieved_goal[2] >= self.tcp_z_position_min
-        distance_ok = distance_to_block <= self.acceptable_distance_to_cube
+        if np.linalg.norm(true_loc[0] - true_goal[0]) < self.tol_x and true_loc[1] - true_goal[1] < self.tol_y and np.linalg.norm(true_loc[2] - true_goal[2]) < self.tol_z:
+            distance_ok = True
         reached_block_b = distance_ok and tcp_z_pos_ok
         
         rospy.logdebug("###### REACHED BLOCK ? ######")
