@@ -210,7 +210,7 @@ class SawyerEnvIK(RobotGazeboEnv):
     def _get_obs(self):
         raise NotImplementedError()
     
-    def _get_info(self, done, init_obs, last_obs):
+    def _get_info(self, obs, action, init_obs):
         raise NotImplementedError()
     
     def _get_state(self):

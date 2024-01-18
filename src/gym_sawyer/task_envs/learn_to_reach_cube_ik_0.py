@@ -394,8 +394,12 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         return true_loc
 
 
-    def _get_info(self, observations, action):
-        info = {"action": action}
+    def _get_info(self, obs, action, init_obs=None):
+        if not init_obs:
+            # No normalization is used
+            info = {"action": action, "total_dist": 1}
+        else:
+            info = {"action": action, "total_dist": np.linalg.norm(init_obs["achieved_goal"] - init_obs["desired_goal"])}
         return info
     
     '''
@@ -538,17 +542,17 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
     def compute_step_reward(self, achieved_goal, desired_goal, info):
         
-        # total_step_reward=50.0
+        total_step_reward=50.0
         # away_penalty_mult=2.0
         current_dist = np.linalg.norm(achieved_goal - desired_goal)
         next_dist = np.linalg.norm(achieved_goal + info["action"] - desired_goal)
 
-        delta_dist = current_dist - next_dist
+        normalized_delta_dist = (current_dist - next_dist) / info["total_dist"]
 
-        if delta_dist > 0:
-            return 50 * delta_dist
+        if normalized_delta_dist > 0:
+            return total_step_reward * normalized_delta_dist
         else:
-            return 50 * delta_dist - 1.5
+            return total_step_reward * normalized_delta_dist - 1.5
 
 # Termination detection =======================================================
 
