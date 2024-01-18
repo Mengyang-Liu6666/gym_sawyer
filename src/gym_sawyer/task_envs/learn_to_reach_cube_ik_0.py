@@ -26,6 +26,8 @@ register(
         max_episode_steps=timestep_limit_per_episode,
     )
 
+#   0116 version: terminate when located above block
+
 class SawyerReachCubeIKEnv(SawyerEnvIK):
     def __init__(self):
         """
@@ -51,11 +53,11 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         self.reward_range = (-np.inf, np.inf)
         
         self.work_space_x_max = 1.1 # rospy.get_param("/sawyer/work_space/x_max")
-        self.work_space_x_min = 0.0 # rospy.get_param("/sawyer/work_space/x_min")
+        self.work_space_x_min = 0.25 # rospy.get_param("/sawyer/work_space/x_min")
         self.work_space_y_max = 0.75 # rospy.get_param("/sawyer/work_space/y_max")
         self.work_space_y_min = -0.75 # rospy.get_param("/sawyer/work_space/y_min")
-        self.work_space_z_max = 0.65 # rospy.get_param("/sawyer/work_space/z_max")
-        self.work_space_z_min = -0.024 # rospy.get_param("/sawyer/work_space/z_min")
+        self.work_space_z_max = 0.65 + 0.838066 # rospy.get_param("/sawyer/work_space/z_max")
+        self.work_space_z_min = 0.78 # -0.024 + 0.838066 # rospy.get_param("/sawyer/work_space/z_min")
         
         self.max_effort = 50 # rospy.get_param("/sawyer/max_effort")
         
@@ -67,17 +69,23 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         self.tol_x = 0.015
 
-        self.tol_y = 0.015
+        self.tol_y = 0.01
 
-        self.tol_z = 0.01
+        self.tol_z = 0.015
         
-        self.tcp_z_position_min = 0.83 # rospy.get_param("/sawyer/tcp_z_position_min")
+        # self.tcp_z_position_min = 0.83 # rospy.get_param("/sawyer/tcp_z_position_min")
 
-        self.noise_std = 0.01 # unit in meters, 95% chance the noise will be in (-2*std, 2*std)
+        self.noise_std = 0.0 # unit in meters, 95% chance the noise will be in (-2*std, 2*std)
         
         self.time_step = 0.25 # in seconds, size of discrete time.
 
-        self.max_joint_move_per_step = 1.0 # in rad, maximum angle for each joint to move in each step
+        self.max_joint_move_per_step = np.pi/8 # in rad, maximum angle for each joint to move in each step
+
+        self.gripper_location_fix = np.array([0, 0, 0.838066])
+
+        self.block_location_fix = np.array([0.024, 0.024, 0]) # handle the block size
+
+        self.hover_distance = 0.0
 
 
         # We place the Maximum and minimum values of observations
@@ -119,13 +127,13 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                                       self.work_space_y_max, 
                                       self.work_space_z_max])
         
-        self.block_space_min = np.array([0.55, -0.4, -1.0])
-        self.block_space_max = np.array([0.85, 0.35, 1.5])
+        self.block_space_min = np.array([0.60, -0.4])
+        self.block_space_max = np.array([0.85, 0.35])
 
         obs_space_dict = OrderedDict()
         obs_space_dict["observation"] = spaces.Box(joint_angle_min, joint_angle_max)
         obs_space_dict["achieved_goal"] = spaces.Box(work_space_min, work_space_max)
-        obs_space_dict["desired_goal"] = spaces.Box(self.block_space_min, self.block_space_max)
+        obs_space_dict["desired_goal"] = spaces.Box(work_space_min, work_space_max)
 
         self.observation_space = spaces.Dict(obs_space_dict)
 
@@ -237,24 +245,21 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         # For Info Purposes
         self.cumulated_reward = 0.0
         # We get the initial pose to mesure the distance from the desired point.
-        translation_tcp_block, rotation_tcp_block = self.get_tf_start_to_end_frames(start_frame_name="block",
-                                                                                    end_frame_name="right_electric_gripper_base")
-        tf_tcp_to_block_vector = Vector3()
-        tf_tcp_to_block_vector.x = translation_tcp_block[0]
-        tf_tcp_to_block_vector.y = translation_tcp_block[1]
-        tf_tcp_to_block_vector.z = translation_tcp_block[2]
+        # translation_tcp_block, rotation_tcp_block = self.get_tf_start_to_end_frames(start_frame_name="block", end_frame_name="right_electric_gripper_base")
+        # tf_tcp_to_block_vector = Vector3()
+        # tf_tcp_to_block_vector.x = translation_tcp_block[0]
+        # tf_tcp_to_block_vector.y = translation_tcp_block[1]
+        # tf_tcp_to_block_vector.z = translation_tcp_block[2]
         
-        self.previous_distance_from_block = self.get_magnitud_tf_tcp_to_block(tf_tcp_to_block_vector)
+        # self.previous_distance_from_block = np.linalg.norm(translation_tcp_block)
         
-        self.translation_tcp_world, _ = self.get_tf_start_to_end_frames(start_frame_name="world",
-                                                                                    end_frame_name="right_electric_gripper_base")
+        # self.translation_tcp_world, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_electric_gripper_base")
                                                                                      
         self.ik_solvable = True
 
         self.joint_too_fast = False
 
-        
-        
+
 
     def _set_action(self, delta_location):
         """
@@ -330,22 +335,34 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         # Achieved Goal
 
-        endpoint_location = np.array(self.get_limb_endpoint_pose()["position"])
+
+        # FK gripper location
+        # endpoint_location = np.array(self.get_limb_endpoint_pose()["position"])
+
+        # True location
+        endpoint_location = self._get_true_loc()
 
         # Desired Goal
 
         target_location, _ = self.get_tf_start_to_end_frames(start_frame_name="world",
                                                                                     end_frame_name="block")
+
+        target_location_array = np.array(target_location) + np.array([0.024, 0.024, 0]) # handle the block size                   
+
         # Add noise
 
         noise = np.random.normal(loc=0.0, scale=self.noise_std, size=(1, 3))[0]
-        target_location_array = np.array(target_location)
+        
         # target_location_array[0] = target_location_array[0] + 0.03
         # target_location_array[1] = target_location_array[1] + 0.03
         # target_location_array[2] = target_location_array[2] + 0.03 - 0.93
         # rospy.logwarn("target_location is: " + str(target_location))
         noised_target = noise + target_location_array
-        clipped_noised_target = np.clip(noised_target, self.block_space_min, self.block_space_max)
+
+        lower_bound = np.concatenate([self.block_space_min, self.work_space_z_min], axis=None)
+        upper_bound = np.concatenate([self.block_space_max, self.work_space_z_max], axis=None)
+
+        clipped_noised_target = np.clip(noised_target, lower_bound, upper_bound)
 
         observation = {
                 "observation": joints_angles_array,
@@ -353,47 +370,51 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                 "desired_goal": clipped_noised_target,
             }
 
+        # 0112 only used to compare FK and actual gripper location
 
+        # true_dist, true_loc, true_goal = self._get_state()
+        # rospy.logwarn("# Real raw End-effector location: " + str(np.round(true_loc - np.array([0, 0, 0.838066]), decimals = 6)))
 
         # Update effort info to detect stuck
 
         self.joints_efforts_dict = self.get_all_limb_joint_efforts()
         rospy.logdebug("JOINTS EFFORTS DICT OBSERVATION METHOD==>"+str(self.joints_efforts_dict))
 
-        
 
         # Update real location into to detect outside workspace
 
-        self.translation_tcp_world, _ = self.get_tf_start_to_end_frames(start_frame_name="world",
-                                                                                    end_frame_name="right_electric_gripper_base")
+        # self.translation_tcp_world, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_electric_gripper_base")
 
         return observation
-    
-    def _get_info(self, done, total_dist, last_dist):
-        true_dist, true_loc, true_goal = self._get_state()
-        info = {
-            "_is_done": done,
-            "true_dist": true_dist,
-            "last_dist": last_dist,
-            "total_dist": total_dist,
-            "true_loc": true_loc,
-            "true_goal": true_goal,
-        }
+
+    def _get_true_loc(self):
+        left_finger, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_gripper_l_finger")
+        right_finger, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_gripper_r_finger")
+        true_loc = (np.array(left_finger) + np.array(right_finger)) * 0.5 + self.gripper_location_fix
+        return true_loc
+
+
+    def _get_info(self, observations, action):
+        info = {"action": action}
         return info
     
+    '''
+
     def _get_state(self):
         left_finger, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_gripper_l_finger")
         right_finger, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_gripper_r_finger")
-        true_loc = (np.array(left_finger) + np.array(right_finger)) * 0.5 + np.array([-0.024, -0.024, 0.838066])
+        true_loc = (np.array(left_finger) + np.array(right_finger)) * 0.5 + np.array([0, 0, 0.838066])
 
         # true_loc, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_l6")
         # true_loc = np.array(true_loc) + np.array([0, 0, 0])
 
         true_goal, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="block")
-        true_goal = np.array(true_goal)
+        true_goal = np.array(true_goal) + np.array([0.024, 0.024, 0])
 
         true_dist = np.linalg.norm(true_loc - true_goal)
         return true_dist, true_loc, true_goal
+
+    '''
     
     def _is_done(self, observations):
         """
@@ -403,114 +424,51 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         3) The TCP to block distance is lower than a threshold ( it got to the place )
         4) The IK has no solution to the desired end effector location.
         """
-        # Stuck
-        is_stuck = self.is_arm_stuck(self.joints_efforts_dict)
-        
-        # Outside workspace
-
-        tcp_current_pos = Vector3()
-        tcp_current_pos.x = self.translation_tcp_world[0]
-        tcp_current_pos.y = self.translation_tcp_world[1]
-        tcp_current_pos.z = self.translation_tcp_world[2]
-        
-        is_inside_workspace = self.is_inside_workspace(tcp_current_pos)
-        
-        # Reached Goal
 
         achieved_goal = observations["achieved_goal"]
         desired_goal = observations["desired_goal"]
 
-        true_dist, true_loc, true_goal = self._get_state()
+        # Stuck
+        is_stuck = self.is_arm_stuck()
         
-        has_reached_the_block = self.reached_block(achieved_goal, true_dist, true_loc, true_goal)
+        # Outside workspace
+        
+        inside_workspace_xyz = self.is_inside_workspace_xyz(achieved_goal)
+        landing = self.is_landing(achieved_goal, desired_goal)
+        
+        # Reached Goal
+
+        reached_block = False
+
+        if landing:
+            reached_block = self.is_reached_block(achieved_goal, desired_goal)
 
         # IK included
         if is_stuck:
             rospy.logerr("[Done]: arm is stuck.")
             return True
-        if not(is_inside_workspace):
-            rospy.logerr("[Done]: Arm outside workspace.")
+        if reached_block:
+            rospy.logwarn("[Done]: Target is reached!")
+            # self.set_g(1)
             return True
-        if has_reached_the_block:
-            rospy.logerr("[Done]: Target is reached!")
+        if self.joint_too_fast or not(self.ik_solvable):
             return True
-        if self.joint_too_fast:
+        if not(inside_workspace_xyz):
+            rospy.logerr("[Done]: Arm outside workspace xyz-axis.")
             return True
-        if not(self.ik_solvable):
+        if landing:
+            rospy.logerr("[Done]: Arm touches table.")
             return True
         else:
             return False
-
 
         # done = is_stuck or not(is_inside_workspace) or has_reached_the_block or not(self.ik_solvable)
         
         # return done
 
+# Compute reward ==============================================================
+
     # Used for HER
-
-    def compute_step_reward(self, current_dist, last_dist, total_dist, total_step_reward=50.0, away_penalty_mult=2.0):
-        delta_dist = last_dist - current_dist
-        if delta_dist < 0:
-            delta_dist = delta_dist * away_penalty_mult
-        norm_delta_dist = delta_dist / total_dist
-
-        return norm_delta_dist * total_step_reward
-
-    def compute_reward(self, achieved_goal, desired_goal, info):
-
-        success_reward = 200
-        fail_reward = -1000
-        total_step_reward = 50.0
-        away_penalty_mult = 2.0 # set > 1
-
-        if not isinstance(info, dict):
-            rewards = []
-            for i in range(len(info)):
-
-                done = info[i]["_is_done"]
-                reached = self.reached_block(achieved_goal[i], info[i]["true_dist"], info[i]["true_loc"], info[i]["true_goal"])
-                if reached:  # Success
-                    rewards.append(success_reward)
-                elif done:   # Not success but terminated, meaning it fails
-                    rewards.append(fail_reward)
-                else:        # Moving
-                    current_dist = info[i]["true_dist"]
-                    last_dist = info[i]["last_dist"]
-                    total_dist = info[i]["total_dist"]
-                    step_reward = self.compute_step_reward(current_dist, last_dist, total_dist, total_step_reward, away_penalty_mult)
-                    rewards.append(step_reward)
-                
-            return np.array(rewards)
-
-        done = info["_is_done"]
-        reached = self.reached_block(achieved_goal, info["true_dist"], info["true_loc"], info["true_goal"])
-
-        current_dist = info["true_dist"]
-        last_dist = info["last_dist"]
-        total_dist = info["total_dist"]
-        true_loc = info["true_loc"]
-        true_goal = info["true_goal"]
-
-        # rospy.logerr("current_dist: " + str(current_dist))
-        # rospy.logerr("last_dist: " + str(last_dist))
-        # rospy.logerr("total_dist: " + str(total_dist))
-        # rospy.logerr("true_loc: " + str(true_loc))
-        # rospy.logerr("true_goal: " + str(true_goal))
-
-        if reached:  # Success
-            return success_reward
-        elif done:   # Not success but terminated, meaning it fails
-            return fail_reward
-        else:        # Moving
-            current_dist = info["true_dist"]
-            last_dist = info["last_dist"]
-            total_dist = info["total_dist"]
-            step_reward = self.compute_step_reward(current_dist, last_dist, total_dist, total_step_reward, away_penalty_mult)
-
-            return step_reward
-
-
-        
 
     def _compute_reward(self, observations, info):
         """
@@ -534,9 +492,132 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         return reward
 
+    def compute_reward(self, achieved_goal, desired_goal, info):
+        
+        if not isinstance(info, dict):
+            rewards = []
+            for i in range(len(info)):
+                rewards.append(self.compute_single_reward(achieved_goal, desired_goal, info[i]))
+            return np.array(rewards)
+        else:
+            return self.compute_single_reward(achieved_goal, desired_goal, info)   
 
-    # Internal TaskEnv Methods
-    def is_arm_stuck(self, joints_efforts_dict):
+    # Shape reward here
+
+    def compute_single_reward(self, achieved_goal, desired_goal, info):
+        success_reward = 400.0
+        fail_reward = 0.0
+
+        max_landing_reward = 200.0
+        min_landing_reward = 20.0 # must be smaller than max_landing_reward
+        max_block_dist = np.linalg.norm(self.block_space_max - self.block_space_min)
+        beta = np.log(min_landing_reward/max_landing_reward)/max_block_dist
+
+        # rospy.logerr("current_dist: " + str(current_dist))
+        # rospy.logerr("last_dist: " + str(last_dist))
+        # rospy.logerr("total_dist: " + str(total_dist))
+        # rospy.logerr("true_loc: " + str(true_loc))
+        # rospy.logerr("true_goal: " + str(true_goal))
+
+        landing = self.is_landing(achieved_goal, desired_goal)
+        reached_block = False
+
+        if landing:
+            reached_block = self.is_reached_block(achieved_goal, desired_goal)
+
+
+        if self.is_arm_stuck() or not(self.is_inside_workspace_xyz(achieved_goal)) or self.joint_too_fast or not(self.ik_solvable):
+            return fail_reward - 60.0
+        elif reached_block: # Success
+            return success_reward
+        elif landing: # Landing
+            return max_landing_reward * np.exp(beta * np.linalg.norm(achieved_goal[0:2] - desired_goal[0:2])) - 60.0
+        else: # Moving
+            step_reward = self.compute_step_reward(achieved_goal, desired_goal, info)
+        return step_reward
+
+    def compute_step_reward(self, achieved_goal, desired_goal, info):
+        
+        # total_step_reward=50.0
+        # away_penalty_mult=2.0
+        current_dist = np.linalg.norm(achieved_goal - desired_goal)
+        next_dist = np.linalg.norm(achieved_goal + info["action"] - desired_goal)
+
+        delta_dist = current_dist - next_dist
+
+        if delta_dist > 0:
+            return 50 * delta_dist
+        else:
+            return 50 * delta_dist - 1.5
+
+# Termination detection =======================================================
+
+    def is_reached_block(self, achieved_goal, desired_goal):
+        """
+        It return True if the transform TCP to block vector magnitude is smaller than
+        the minimum_distance.
+        tcp_z_position we use it to only consider that it has reached if its above the table.
+        """
+        
+        reached_block_b = False
+        distance_ok = False
+
+        #tcp_z_pos_ok = achieved_goal[2] >= self.tcp_z_position_min
+        tcp_z_pos_ok = True
+        
+        if np.linalg.norm(achieved_goal[0] - desired_goal[0]) < self.tol_x:
+            if np.linalg.norm(achieved_goal[1] - desired_goal[1]) < self.tol_y:
+                distance_ok = True
+                # if np.linalg.norm(desired_goal[2] - (self.work_space_z_min + 0.772500) - achieved_goal[2]) < self.tol_z:
+                    
+        reached_block_b = distance_ok and tcp_z_pos_ok
+        
+        rospy.logdebug("###### REACHED BLOCK ? ######")
+        rospy.logdebug("tcp_z_pos_ok==>"+str(tcp_z_pos_ok))
+        rospy.logdebug("distance_ok==>"+str(distance_ok))
+        rospy.logdebug("reached_block_b==>"+str(reached_block_b))
+        rospy.logdebug("############")
+        
+        return reached_block_b
+        
+
+
+    def is_inside_workspace_xyz(self, achieved_goal):
+        """
+        Check if the sawyer is inside the Workspace defined
+        """
+        is_inside = False
+
+        rospy.logdebug("##### INSIDE WORK SPACE? #######")
+        rospy.logdebug("XYZ current_position"+str(achieved_goal))
+        rospy.logdebug("work_space_x_max"+str(self.work_space_x_max)+",work_space_x_min="+str(self.work_space_x_min))
+        rospy.logdebug("work_space_y_max"+str(self.work_space_y_max)+",work_space_y_min="+str(self.work_space_y_min))
+        rospy.logdebug("work_space_z_max"+str(self.work_space_z_max)+",work_space_z_min="+str(self.work_space_z_min))
+        rospy.logdebug("############")
+
+        if achieved_goal[0] > self.work_space_x_min and achieved_goal[0] < self.work_space_x_max:
+            if achieved_goal[1] > self.work_space_y_min and achieved_goal[1] < self.work_space_y_max:
+                if achieved_goal[2] < self.work_space_z_max:
+                    is_inside = True
+        
+        return is_inside
+    
+
+    def is_landing(self, achieved_goal, desired_goal):
+        
+        return achieved_goal[2] <= desired_goal[2] + self.hover_distance + 0.85 - 0.78
+
+    def is_success(self, observations):
+        """
+        Wrapper of is_reached_block()
+        """
+        
+        achieved_goal = observations["achieved_goal"]
+        desired_goal = observations["desired_goal"]
+
+        return self.is_landing(achieved_goal, desired_goal) and self.is_reached_block(achieved_goal, desired_goal)
+
+    def is_arm_stuck(self):
         """
         Checks if the efforts in the arm joints exceed certain theshhold
         We will only check the joints_0,1,2,3,4,5,6
@@ -544,9 +625,9 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         is_arm_stuck = False
         
         for joint_name in self.joint_limits.joint_names:
-            if joint_name in joints_efforts_dict:
+            if joint_name in self.joints_efforts_dict:
                 
-                effort_value = joints_efforts_dict[joint_name]
+                effort_value = self.joints_efforts_dict[joint_name]
                 index = self.joint_limits.joint_names.index(joint_name)
                 effort_limit = self.joint_limits.effort[index]
                 
@@ -563,107 +644,102 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         
         return is_arm_stuck
     
-    
-    def reached_block(self, achieved_goal, true_dist, true_loc, true_goal):
-        """
-        It return True if the transform TCP to block vector magnitude is smaller than
-        the minimum_distance.
-        tcp_z_position we use it to only consider that it has reached if its above the table.
-        """
-        
-        reached_block_b = False
-        distance_ok = False
+# Landing with IK =============================================================
 
-        #tcp_z_pos_ok = achieved_goal[2] >= self.tcp_z_position_min
-        tcp_z_pos_ok = True
-        
-        if np.linalg.norm(true_loc[0] - true_goal[0]) < self.tol_x and true_loc[1] - true_goal[1] < self.tol_y and np.linalg.norm(true_loc[2] - true_goal[2]) < self.tol_z:
-            distance_ok = True
-        reached_block_b = distance_ok and tcp_z_pos_ok
-        
-        rospy.logdebug("###### REACHED BLOCK ? ######")
-        rospy.logdebug("tcp_z_pos_ok==>"+str(tcp_z_pos_ok))
-        rospy.logdebug("distance_ok==>"+str(distance_ok))
-        rospy.logdebug("reached_block_b==>"+str(reached_block_b))
-        rospy.logdebug("############")
-        
-        return reached_block_b
-    
-    # No longer use
-    
-    def get_distance_from_desired_point(self, current_position):
+    def pick_or_place(self, observation, pick=True, steps=5, lift_distance=0.1):
         """
-        Calculates the distance from the current position to the desired point
-        :param start_point:
-        :return:
+        Assume self.is_success(obs) == True
+        pick: True for pick, False for place.
         """
-        distance = self.get_distance_from_point(current_position,
-                                                self.desired_point)
-    
-        return distance
-    
-    # No longer use
-        
-    def get_distance_from_point(self, pstart, p_end):
-        """
-        Given a Vector3 Object, get distance from current position
-        :param p_end:
-        :return:
-        """
-        a = np.array((pstart.x, pstart.y, pstart.z))
-        b = np.array((p_end.x, p_end.y, p_end.z))
-    
-        distance = np.linalg.norm(a - b)
-    
-        return distance
-    
-    # No longer use
-    
-    def get_magnitud_tf_tcp_to_block(self, translation_vector):
-        """
-        Given a Vector3 Object, get the magnitud
-        :param p_end:
-        :return:
-        """
-        a = np.array((   translation_vector.x,
-                            translation_vector.y,
-                            translation_vector.z))
-        
-        distance = np.linalg.norm(a)
-    
-        return distance
-        
-    # No longer use
 
-    def get_orientation_euler(self, quaternion_vector):
-        # We convert from quaternions to euler
-        orientation_list = [quaternion_vector.x,
-                            quaternion_vector.y,
-                            quaternion_vector.z,
-                            quaternion_vector.w]
-    
-        roll, pitch, yaw = euler_from_quaternion(orientation_list)
-        return roll, pitch, yaw
+        x_diff = observation["desired_goal"][0] - observation["achieved_goal"][0]
+        y_diff = observation["desired_goal"][1] - observation["achieved_goal"][1]
         
-    def is_inside_workspace(self,current_position):
-        """
-        Check if the sawyer is inside the Workspace defined
-        """
-        is_inside = False
-
-        rospy.logdebug("##### INSIDE WORK SPACE? #######")
-        rospy.logdebug("XYZ current_position"+str(current_position))
-        rospy.logdebug("work_space_x_max"+str(self.work_space_x_max)+",work_space_x_min="+str(self.work_space_x_min))
-        rospy.logdebug("work_space_y_max"+str(self.work_space_y_max)+",work_space_y_min="+str(self.work_space_y_min))
-        rospy.logdebug("work_space_z_max"+str(self.work_space_z_max)+",work_space_z_min="+str(self.work_space_z_min))
-        rospy.logdebug("############")
-
-        if current_position.x > self.work_space_x_min and current_position.x <= self.work_space_x_max:
-            if current_position.y > self.work_space_y_min and current_position.y <= self.work_space_y_max:
-                if current_position.z > self.work_space_z_min and current_position.z <= self.work_space_z_max:
-                    is_inside = True
         
-        return is_inside
-        
-    
+        fk_to_true = np.array([0.0, 0.0, 0.913757])
 
+        # block location, w.r.t. FK of the limb
+        goal = observation["achieved_goal"] + self.block_location_fix - fk_to_true
+
+        self.gazebo.unpauseSim()
+
+        for landing in [True, False]:
+
+            action_start_time = time.perf_counter()
+
+            for d in range(int(steps), 0, -1):
+                rospy.logerr("Moving with control "+str(d))
+                current_pose = self.get_limb_endpoint_pose()
+
+                rospy.logerr("Goal for FK: " + str(goal))
+                rospy.logerr("FK location: "+str(current_pose["position"]))
+                rospy.logerr("True location: " + str(observation["achieved_goal"]))
+                
+
+                delta_x = (goal[0] - current_pose['position'].x) / d
+                if abs(delta_x) < 1e-3: # numerical stability for IK
+                    delta_x = 0.0
+                delta_y = (goal[1] - current_pose['position'].y) / d
+                if abs(delta_y) < 1e-3: # numerical stability for IK
+                    delta_y = 0.0
+                delta_z = (goal[2] - current_pose['position'].z) / d
+
+                rospy.logerr(str(delta_x) + " " + str(delta_y) + " " + str(delta_z))
+
+                ik_pose = Pose()
+                # ik_pose.position.x = current_pose['position'].x + delta_x
+                # ik_pose.position.y = current_pose['position'].y + delta_y
+
+
+                if landing:
+                    ik_pose.position.x = current_pose['position'].x + (x_diff / steps) * (d == 1)
+                    ik_pose.position.y = current_pose['position'].y
+                    ik_pose.position.z = current_pose['position'].z - (self.hover_distance + 0.85 - 0.78) / steps
+                else:
+                    ik_pose.position.x = current_pose['position'].x
+                    ik_pose.position.y = current_pose['position'].y
+                    ik_pose.position.z = current_pose['position'].z + lift_distance / steps
+
+                # No change in quaternion
+                ik_pose.orientation.w = current_pose['orientation'].w
+                ik_pose.orientation.x = current_pose['orientation'].x
+                ik_pose.orientation.y = current_pose['orientation'].y
+                ik_pose.orientation.z = current_pose['orientation'].z
+            
+                joint_angles = self.request_limb_ik(ik_pose)
+
+                if not joint_angles:
+                    rospy.logerr("NO IK SOLUTION for pose")
+                    self.gazebo.pauseSim()
+                    return False
+                else:
+                    rospy.logerr(str(joint_angles))
+                    action_tuple = (joint_angles, 0) # no action on gripper
+                    rospy.logerr("Executing movement")
+                    
+                    self.execute_movement(action_tuple)
+                    # self.limb.set_joint_positions(joint_angles)
+                    rospy.logerr("Movement is finished")
+
+                    action_end_time = time.perf_counter()
+                    time_spent = action_end_time - action_start_time
+                    rospy.sleep(self.time_step - time_spent)
+                    rospy.sleep(self.time_step)
+
+            rospy.sleep(0.5)
+
+            if landing == 1:
+                self.set_g(int(pick))
+                if self.get_gripper_condition():
+                    rospy.logerr("Gripper is holding an object")
+                else:
+                    rospy.logerr("Gripper is not holding any object")
+                goal[2] = goal[2] + lift_distance
+                rospy.sleep(0.5)
+
+        self.gazebo.pauseSim()
+        
+        return True
+
+
+            

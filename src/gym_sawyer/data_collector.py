@@ -14,7 +14,7 @@ from gym import wrappers
 import rospy
 import rospkg
 
-
+import pandas as pd
 
 # NEED MODIFICATIONS =========================
 
@@ -32,19 +32,19 @@ def random_walk(t):
     # z-axis: up-down
 
     # y = 0.2 * (2 * random.randint(0, 1) - 1)
-    y = 0.0
+    y = -0.03
     x = 0.0
-    z = -0.01
+    z = 0.01
     return [x, y, z]
 
 def policy(obs, t, device):
-    trivial = False
+    trivial = True
     if trivial:
         return random_walk(t)
     else:
         # filename = "./logs/ddpg_fixed_1123_75000_steps"
         # filename = "./logs/best_model"
-        filename = "./logs/ddpg_fixed_0116_5000_steps"
+        filename = "./logs/ddpg_fixed_1203_27500_steps"
         model = DDPG.load(filename, device=device)
         action, _states = model.predict(obs)
         return action
@@ -86,7 +86,17 @@ if __name__ == '__main__':
 
     last_time_steps = np.ndarray(0)
 
+    '''
+
+    gripper_data = {'joint_angle_0': [], 'joint_angle_1': [], 'joint_angle_2': [], 'joint_angle_3': [], 'joint_angle_4': [], 'joint_angle_5': [], 'joint_angle_6': [],
+                    'fk_x': [], 'fk_y': [], 'fk_z': [],
+                    'true_raw_loc_x':[], 'true_raw_loc_y':[], 'true_raw_loc_z':[]}
+    df = pd.DataFrame.from_dict(gripper_data)
     
+    '''
+
+    df = pd.read_csv("./gripper_data.csv")
+
     '''
 
     # Loads parameters from the ROS param server
@@ -113,7 +123,7 @@ if __name__ == '__main__':
 
     rospy.logdebug("Start Demo")
 
-    for episode in range(4): # 4 rounds for now
+    for episode in range(1): # 4 rounds for now
         rospy.logdebug("############### ROUND: " + str(episode+1))
 
         cumulated_reward = 0
@@ -133,22 +143,37 @@ if __name__ == '__main__':
 
             action = policy(observation, i, device)
 
+            rospy.logwarn("Next action is: %s", str(action[0]))
+
             # Step the action
             observation, reward, done, info = env.step(action)
 
             # Logging
             cumulated_reward += reward
 
+            
             rospy.logwarn("# Joint angles: " + str(np.round(observation["observation"], decimals = ROUNDING_DEC)))
+            joint_angles = np.round(observation["observation"], decimals = ROUNDING_DEC)
+
             rospy.logwarn("# FK End-effector location: " + str(np.round(observation["achieved_goal"], decimals = ROUNDING_DEC)))
+            fk = np.round(observation["achieved_goal"], decimals = ROUNDING_DEC)
+
+            true_loc = info["true_loc"]
+            rospy.logwarn("# Real raw End-effector location: " + str(np.round(true_loc - np.array([0, 0, 0.838066]), decimals = ROUNDING_DEC)))
+            true_raw_loc = np.round(true_loc - np.array([0, 0, 0.838066]), decimals = ROUNDING_DEC)
+
             rospy.logwarn("# Goal location with noise: " + str(np.round(observation["desired_goal"], decimals = ROUNDING_DEC)))
             rospy.logwarn("# action that we took=>" + str(action))
             rospy.logwarn("# reward that action gave=>" + str(reward))
             rospy.logwarn("# episode cumulated_reward=>" +
                           str(cumulated_reward))
 
-            # Logging
-            rospy.logwarn("############### END Step=>" + str(i))
+            new_row = {'fk_x': fk[0], 'fk_y': fk[1], 'fk_z': fk[2],
+                    'true_raw_loc_x': true_raw_loc[0], 'true_raw_loc_y': true_raw_loc[1], 'true_raw_loc_z': true_raw_loc[2]}
+            for i in range(7):
+                new_row["joint_angle_"+str(i)] = joint_angles[i]
+
+            df = df._append(new_row, ignore_index=True)
 
             # Check for termination of the episode
             if not (done):
@@ -158,10 +183,12 @@ if __name__ == '__main__':
                 rospy.logwarn("DONE")
                 last_time_steps = np.append(last_time_steps, [int(i + 1)])
 
-                # if env.is_success(observation):
-                #     env.pick_or_place(observation=observation, pick=True)
+                df.to_csv("gripper_data.csv", index=False)
 
-                break            
+                break
+
+            # Logging
+            rospy.logwarn("############### END Step=>" + str(i))
 
             # r.sleep()
 

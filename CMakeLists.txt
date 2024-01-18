@@ -23,11 +23,16 @@ add_message_files(
  )
 
 
-
-# install(PROGRAMS
-#    ./warm_up.py set_gazebo_model.py training.py
-#    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(PROGRAMS
+   src/gym_sawyer/data_collector.py
+   src/gym_sawyer/demo_ik_0.py
+   src/gym_sawyer/data_collector.py
+   scripts/block_odom_publisher.py
+   scripts/block_tf_publisher.py
+   scripts/ik_pick_and_place_demo.py
+   scripts/joint_position_keyboard.py
+   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 catkin_python_setup()
 

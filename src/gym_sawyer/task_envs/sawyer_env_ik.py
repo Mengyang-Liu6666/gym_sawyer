@@ -86,6 +86,7 @@ class SawyerEnvIK(RobotGazeboEnv):
         rospy.logdebug("SawyerEnvIK check_all_systems_ready...")
         self._check_all_sensors_ready()
         rospy.logdebug("END SawyerEnvIK _check_all_systems_ready...")
+        rospy.sleep(0.5)
         return True
 
 
@@ -217,6 +218,11 @@ class SawyerEnvIK(RobotGazeboEnv):
 
     def _is_done(self, observations):
         """Checks if episode done based on observations given.
+        """
+        raise NotImplementedError()
+
+    def is_success(self, observations):
+        """Indicates whether or not the episode is done and succeeded.
         """
         raise NotImplementedError()
     
@@ -352,10 +358,12 @@ class SawyerEnvIK(RobotGazeboEnv):
                 rospy.logerr("Current /robot/joint_limits not ready yet, retrying for getting joint_limits")
         return self.joint_limits
     
-    
+
     def get_joint_limits(self):
         return self.joint_limits
-        
+    
+    def get_gripper_condition(self):
+        return self.gripper.is_gripping()
     
     def get_head_camera_image_raw(self):
         return self.head_camera_image_raw    

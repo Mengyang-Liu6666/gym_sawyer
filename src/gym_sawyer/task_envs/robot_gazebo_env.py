@@ -49,9 +49,10 @@ class RobotGazeboEnv(gym.Env):
         obs = self._get_obs()
         done = self._is_done(obs)
         # To support HER
-        info = self._get_info(done, self.init_dist, self.last_dist)
+        # info = self._get_info(done, self.init_dist, self.last_dist)
+        info = self._get_info(obs, action)
         reward = self._compute_reward(obs, info)
-        self.last_dist, _, _ = self._get_state()
+        # self.last_dist, _, _ = self._get_state()
         self.cumulated_episode_reward += reward
         if done:
             rospy.logerr("Cumulative reward: " + str(self.cumulated_episode_reward))
@@ -68,8 +69,8 @@ class RobotGazeboEnv(gym.Env):
         self._update_episode()
         obs = self._get_obs()
         # Save initial observation
-        self.init_dist, _, _ = self._get_state()
-        self.last_dist, _, _ = self._get_state()
+        # self.init_dist, _, _ = self._get_state()
+        # self.last_dist, _, _ = self._get_state()
         rospy.logdebug("END Reseting RobotGazeboEnvironment")
         return obs
 
@@ -81,6 +82,11 @@ class RobotGazeboEnv(gym.Env):
         """
         rospy.logdebug("Closing RobotGazeboEnvironment")
         rospy.signal_shutdown("Closing RobotGazeboEnvironment")
+
+    def is_success(self, observations):
+        """Indicates whether or not the episode is done and succeeded.
+        """
+        raise NotImplementedError()
 
     def _update_episode(self):
         """

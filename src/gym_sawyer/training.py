@@ -4,8 +4,12 @@ import gym
 import numpy as np
 import random
 import time
-import torch
-# import qlearn
+import torch as nn
+import torch.nn.functional as F
+import pandas as pd
+import datetime
+import os
+
 from gym import wrappers
 # ROS packages required
 import rospy
@@ -21,6 +25,50 @@ from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.callbacks import CallbackList
+from stable_baselines3.common.callbacks import BaseCallback
+
+# 0113 new setups
+
+from stable_baselines3.common.torch_layers import CombinedExtractor
+
+class CustomCombinedExtractor(CombinedExtractor):
+    def __init__(self, observation_space):
+        super(CustomNetwork, self).__init__(observation_space)
+        
+        self.layer_1 = nn.Linear(observation_space.shape[0], 800)
+        self.layer_2 = nn.Linear(800, 600)
+        self.layer_3 = nn.Linear(600, 600)
+
+    def forward(self, observations):
+        x = F.relu(self.layer_1(observations))
+        x = F.relu(self.layer_2(x))
+        x = F.relu(self.layer_3(x))
+        return x
+
+class EpisodeDataCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super(EpisodeDataCallback, self).__init__(verbose)
+        self.reward_list = np.array([])
+        self.step_list = np.array([])
+        self.episode_counts = 0
+
+        today = datetime.date.today().strftime('%Y-%m-%d')
+        self.filename = "./logs/" + "training_log-" + today + ".npz"
+
+    def _on_step(self) -> bool:
+        if 'episode' in self.locals:
+            self.episode_counts += 1
+            episode_reward = self.locals['episode']['r']
+            episode_steps = self.locals['episode']['l']
+
+            self.reward_list.append(episode_reward)
+            self.step_list.append(episode_steps)
+
+            if self.episode_counts % 50 == 0:
+                np.savez(filename, reward=self.reward_list, step=self.step_list)
+            
+        return True
+
 
 if __name__ == '__main__':
 
@@ -43,7 +91,7 @@ if __name__ == '__main__':
 
     last_time_steps = np.ndarray(0)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = nn.device("cuda:0" if nn.cuda.is_available() else "cpu")
 
     rospy.logerr("Running on " + str(device))
 
@@ -75,14 +123,12 @@ if __name__ == '__main__':
     '''
 
     n_actions = env.action_space.shape[-1]
-    action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions))
-
-    model = DDPG("MultiInputPolicy", env, action_noise=action_noise, verbose=1)
+    action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.025 * np.ones(n_actions))
 
     checkpoint_callback = CheckpointCallback(
-        save_freq=5000,
+        save_freq=2500,
         save_path="./logs/",
-        name_prefix="ddpg_fixed_1120",
+        name_prefix="ddpg_fixed_0116",
         save_replay_buffer=False,
         save_vecnormalize=True,
     )
@@ -94,10 +140,36 @@ if __name__ == '__main__':
         eval_freq=500,
         deterministic=True,
         render=False)
+    
+    data_callback = EpisodeDataCallback()
 
-    callback_list = CallbackList([checkpoint_callback, eval_callback])
+    callback_list = CallbackList([checkpoint_callback, eval_callback, data_callback])
 
-    model.learn(150000, callback=callback_list)
+    continue_learning = False
+    
+    if continue_learning:
+        model = DDPG.load(
+            "./logs/ddpg_fixed_0115_50000_steps", 
+            env=env, 
+            action_noise=action_noise, 
+            verbose=1, 
+            device=device,
+            tensorboard_log="./tensorboard_log/"
+        )
+        model.learn(50000, callback=callback_list, reset_num_timesteps=False)
+    else:
+        policy_kwargs = {"net_arch": [50, 800, 600, 300]}
+
+        model = DDPG(
+            "MultiInputPolicy", 
+            env=env, 
+            action_noise=action_noise, 
+            verbose=1, 
+            device=device,
+            tensorboard_log="./tensorboard_log/",
+            policy_kwargs=policy_kwargs
+        )
+        model.learn(50000, callback=callback_list)
 
     model.save("./ddpg_fixed_env")
 
