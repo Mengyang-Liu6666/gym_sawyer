@@ -69,7 +69,7 @@ class RobotGazeboEnv(gym.Env):
         self._update_episode()
         obs = self._get_obs()
         # Save initial observation
-        self.init_obs, _, _ = self._get_obs()
+        self.init_obs = obs
         rospy.logdebug("END Reseting RobotGazeboEnvironment")
         return obs
 
