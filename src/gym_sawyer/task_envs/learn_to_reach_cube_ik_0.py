@@ -529,8 +529,9 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         if landing:
             reached_block = self.is_reached_block(achieved_goal, desired_goal)
 
-
-        if self.is_arm_stuck() or not(self.is_inside_workspace_xyz(achieved_goal)) or self.joint_too_fast or not(self.ik_solvable):
+        if not(self.is_inside_workspace_xyz(achieved_goal)):
+            return fail_reward - 60.0
+        if self.is_arm_stuck() or self.joint_too_fast or not(self.ik_solvable):
             return fail_reward - 60.0
         elif reached_block: # Success
             return success_reward
