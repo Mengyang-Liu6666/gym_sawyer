@@ -397,9 +397,11 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
     def _get_info(self, obs, action, init_obs=None):
         if not init_obs:
             # No normalization is used
-            info = {"action": action, "total_dist": 1}
+            info = {"action": action, "total_dist_2": 1, "total_dist_3": 1}
         else:
-            info = {"action": action, "total_dist": np.linalg.norm(init_obs["achieved_goal"] - init_obs["desired_goal"])}
+            info = {"action": action, 
+                    "total_dist_2": np.linalg.norm(init_obs["achieved_goal"][0:2] - init_obs["desired_goal"][0:2]),
+                    "total_dist_3": np.linalg.norm(init_obs["achieved_goal"] - init_obs["desired_goal"])}
         return info
     
     '''
@@ -510,12 +512,12 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
     def compute_single_reward(self, achieved_goal, desired_goal, info):
         success_reward = 400.0
-        fail_reward = 0.0
+        # fail_reward = 0.0
 
-        max_landing_reward = 200.0
-        min_landing_reward = 20.0 # must be smaller than max_landing_reward
-        max_block_dist = np.linalg.norm(self.block_space_max - self.block_space_min)
-        beta = np.log(min_landing_reward/max_landing_reward)/max_block_dist
+        max_landing_reward = 150.0
+        min_landing_reward = -10.0 # must be smaller than max_landing_reward
+        # max_block_dist = np.linalg.norm(self.block_space_max - self.block_space_min)
+        # beta = np.log(min_landing_reward/max_landing_reward)/max_block_dist
 
         # rospy.logerr("current_dist: " + str(current_dist))
         # rospy.logerr("last_dist: " + str(last_dist))
@@ -530,30 +532,33 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             reached_block = self.is_reached_block(achieved_goal, desired_goal)
 
         if not(self.is_inside_workspace_xyz(achieved_goal)):
-            return fail_reward - 60.0
+            return -100.0
+
+        landing_reward = max_landing_reward + (min_landing_reward - max_landing_reward) * ((np.linalg.norm(achieved_goal[0:3] - desired_goal[0:3]) / info["total_dist_3"]) ** 2)
+
         if self.is_arm_stuck() or self.joint_too_fast or not(self.ik_solvable):
-            return fail_reward - 60.0
+            return landing_reward - 20.0
         elif reached_block: # Success
             return success_reward
         elif landing: # Landing
-            return max_landing_reward * np.exp(beta * np.linalg.norm(achieved_goal[0:2] - desired_goal[0:2])) - 60.0
+            return landing_reward
         else: # Moving
             step_reward = self.compute_step_reward(achieved_goal, desired_goal, info)
         return step_reward
 
     def compute_step_reward(self, achieved_goal, desired_goal, info):
         
-        total_step_reward=50.0
+        total_step_reward=50.0 * 1.6
         # away_penalty_mult=2.0
-        current_dist = np.linalg.norm(achieved_goal - desired_goal)
-        next_dist = np.linalg.norm(achieved_goal + info["action"] - desired_goal)
+        current_dist = np.linalg.norm((achieved_goal - desired_goal)[0:3])
+        next_dist = np.linalg.norm((achieved_goal + info["action"] - desired_goal)[0:3])
 
-        normalized_delta_dist = (current_dist - next_dist) / info["total_dist"]
+        normalized_delta_dist = (current_dist - next_dist) / info["total_dist_3"]
 
         if normalized_delta_dist > 0:
             return total_step_reward * normalized_delta_dist
         else:
-            return total_step_reward * normalized_delta_dist - 1.5
+            return total_step_reward * normalized_delta_dist
 
 # Termination detection =======================================================
 
