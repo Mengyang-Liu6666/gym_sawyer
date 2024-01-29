@@ -67,9 +67,9 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         # detect reaching goal
 
-        self.tol_x = 0.015
+        self.tol_x = 0.04
 
-        self.tol_y = 0.01
+        self.tol_y = 0.02
 
         self.tol_z = 0.015
         
@@ -85,7 +85,12 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         self.block_location_fix = np.array([0.024, 0.024, 0]) # handle the block size
 
-        self.hover_distance = 0.0
+        self.hover_distance = 0.10
+        # self.hover_distance = 0.85 - 0.78
+
+        self.action_range = np.array([0.01, 0.01, 0.01]) # actual action space, (action_range/time_step) m/s
+
+        # self.action_range = np.array([1.0, 1.0, 1.0]) # by real distance, for policies before 0124
 
 
         # We place the Maximum and minimum values of observations
@@ -137,8 +142,8 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         self.observation_space = spaces.Dict(obs_space_dict)
 
-        action_space_min = np.array([-0.1, -0.1, -0.1])
-        action_space_max = np.array([+0.1, +0.1, +0.1])
+        action_space_min = np.array([-1.0, -1.0, -1.0])
+        action_space_max = np.array([+1.0, +1.0, +1.0])
 
         self.action_space = spaces.Box(action_space_min, action_space_max)
         
@@ -208,8 +213,10 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             # model_state.pose.position.y = -0.025
             # model_state.pose.position.x = 0.86417 # 0.86417
             # model_state.pose.position.y = 0.206706 # 0.206706
-            model_state.pose.position.x = np.random.uniform(self.block_space_min[0], self.block_space_max[0])
-            model_state.pose.position.y = np.random.uniform(self.block_space_min[1], self.block_space_max[1])
+            # model_state.pose.position.x = np.random.uniform(self.block_space_min[0], self.block_space_max[0])
+            # model_state.pose.position.y = np.random.uniform(self.block_space_min[1], self.block_space_max[1])
+            model_state.pose.position.x = np.random.uniform(0.84, 0.89)
+            model_state.pose.position.y = np.random.uniform(-0.06, 0.33)
             model_state.pose.position.z = 0.773 # Fixed
 
             model_state.pose.orientation.x = 0.0
@@ -273,9 +280,9 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
        
         current_pose = self.get_limb_endpoint_pose()
         ik_pose = Pose()
-        ik_pose.position.x = current_pose['position'].x + delta_location[0]
-        ik_pose.position.y = current_pose['position'].y + delta_location[1]
-        ik_pose.position.z = current_pose['position'].z + delta_location[2]
+        ik_pose.position.x = current_pose['position'].x + delta_location[0] * self.action_range[0]
+        ik_pose.position.y = current_pose['position'].y + delta_location[1] * self.action_range[1]
+        ik_pose.position.z = current_pose['position'].z + delta_location[2] * self.action_range[2]
 
         # Keep the orientation fixed
         ik_pose.orientation.x = current_pose['orientation'].x
@@ -344,30 +351,12 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         # Desired Goal
 
-        target_location, _ = self.get_tf_start_to_end_frames(start_frame_name="world",
-                                                                                    end_frame_name="block")
-
-        target_location_array = np.array(target_location) + np.array([0.024, 0.024, 0]) # handle the block size                   
-
-        # Add noise
-
-        noise = np.random.normal(loc=0.0, scale=self.noise_std, size=(1, 3))[0]
-        
-        # target_location_array[0] = target_location_array[0] + 0.03
-        # target_location_array[1] = target_location_array[1] + 0.03
-        # target_location_array[2] = target_location_array[2] + 0.03 - 0.93
-        # rospy.logwarn("target_location is: " + str(target_location))
-        noised_target = noise + target_location_array
-
-        lower_bound = np.concatenate([self.block_space_min, self.work_space_z_min], axis=None)
-        upper_bound = np.concatenate([self.block_space_max, self.work_space_z_max], axis=None)
-
-        clipped_noised_target = np.clip(noised_target, lower_bound, upper_bound)
+        block_location = self._get_block_loc()
 
         observation = {
                 "observation": joints_angles_array,
                 "achieved_goal": endpoint_location,
-                "desired_goal": clipped_noised_target,
+                "desired_goal": block_location,
             }
 
         # 0112 only used to compare FK and actual gripper location
@@ -386,6 +375,35 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         # self.translation_tcp_world, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_electric_gripper_base")
 
         return observation
+
+    def _get_block_loc(self, noise = False):
+
+        target_location, _ = self.get_tf_start_to_end_frames(start_frame_name="world",
+                                                                                    end_frame_name="block")
+
+        target_location_array = np.array(target_location) + self.block_location_fix # handle the block size
+
+        if not noise:
+            return target_location_array
+        else:
+            # Add noise
+
+            noise = np.random.normal(loc=0.0, scale=self.noise_std, size=(1, 3))[0]
+        
+            # target_location_array[0] = target_location_array[0] + 0.03
+            # target_location_array[1] = target_location_array[1] + 0.03
+            # target_location_array[2] = target_location_array[2] + 0.03 - 0.93
+            # rospy.logwarn("target_location is: " + str(target_location))
+            noised_target = noise + target_location_array
+
+            lower_bound = np.concatenate([self.block_space_min, self.work_space_z_min], axis=None)
+            upper_bound = np.concatenate([self.block_space_max, self.work_space_z_max], axis=None)
+
+            clipped_noised_target = np.clip(noised_target, lower_bound, upper_bound)
+
+            return clipped_noised_target
+
+        
 
     def _get_true_loc(self):
         left_finger, _ = self.get_tf_start_to_end_frames(start_frame_name="world", end_frame_name="right_gripper_l_finger")
@@ -451,7 +469,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         # IK included
         if is_stuck:
-            rospy.logerr("[Done]: arm is stuck.")
+            rospy.logerr("[Done]: Arm is stuck.")
             return True
         if reached_block:
             rospy.logwarn("[Done]: Target is reached!")
@@ -508,7 +526,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         else:
             return self.compute_single_reward(achieved_goal, desired_goal, info)   
 
-    # Shape reward here
+    # Shape reward here, now suppose HER is off
 
     def compute_single_reward(self, achieved_goal, desired_goal, info):
         success_reward = 400.0
@@ -535,11 +553,27 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             return -100.0
 
         landing_reward = max_landing_reward + (min_landing_reward - max_landing_reward) * ((np.linalg.norm(achieved_goal[0:3] - desired_goal[0:3]) / info["total_dist_3"]) ** 2)
+        landing_reward = max(landing_reward, -10)
 
         if self.is_arm_stuck() or self.joint_too_fast or not(self.ik_solvable):
             return landing_reward - 20.0
         elif reached_block: # Success
-            return success_reward
+            # Start do land and pick
+            # If picking is successful, give additional reward
+            return_reward = success_reward
+
+            finished = self.pick_or_place(achieved_goal=achieved_goal, desired_goal=desired_goal, pick=True)
+
+            if not finished:
+                return_reward -= 20.0
+            else:
+                block_location = self._get_block_loc()
+                if block_location[2] >= 0.80:
+                    # picking is successful
+                    return_reward += 200
+
+            return return_reward
+
         elif landing: # Landing
             return landing_reward
         else: # Moving
@@ -551,7 +585,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         total_step_reward=50.0 * 1.6
         # away_penalty_mult=2.0
         current_dist = np.linalg.norm((achieved_goal - desired_goal)[0:3])
-        next_dist = np.linalg.norm((achieved_goal + info["action"] - desired_goal)[0:3])
+        next_dist = np.linalg.norm((achieved_goal + info["action"] * self.action_range - desired_goal)[0:3])
 
         normalized_delta_dist = (current_dist - next_dist) / info["total_dist_3"]
 
@@ -615,7 +649,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
     def is_landing(self, achieved_goal, desired_goal):
         
-        return achieved_goal[2] <= desired_goal[2] + self.hover_distance + 0.85 - 0.78
+        return achieved_goal[2] <= desired_goal[2] + self.hover_distance
 
     def is_success(self, observations):
         """
@@ -656,20 +690,25 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
     
 # Landing with IK =============================================================
 
-    def pick_or_place(self, observation, pick=True, steps=5, lift_distance=0.1):
+    def pick_or_place(self, achieved_goal, desired_goal, pick=True, steps=10, lift_distance=0.10):
         """
         Assume self.is_success(obs) == True
         pick: True for pick, False for place.
+
+        Return False if IK no solution is found, True otherwise.
+        True does not garantee picking up, just says the control is proceeded successfully.
         """
 
-        x_diff = observation["desired_goal"][0] - observation["achieved_goal"][0]
-        y_diff = observation["desired_goal"][1] - observation["achieved_goal"][1]
+        x_diff = desired_goal[0] - achieved_goal[0]
+        y_diff = desired_goal[1] - achieved_goal[1]
         
         
         fk_to_true = np.array([0.0, 0.0, 0.913757])
 
         # block location, w.r.t. FK of the limb
-        goal = observation["achieved_goal"] + self.block_location_fix - fk_to_true
+        # goal = observation["desired_goal"] - fk_to_true + self.block_location_fix
+        goal = desired_goal
+
 
         self.gazebo.unpauseSim()
 
@@ -678,23 +717,38 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             action_start_time = time.perf_counter()
 
             for d in range(int(steps), 0, -1):
-                rospy.logerr("Moving with control "+str(d))
-                current_pose = self.get_limb_endpoint_pose()
+                # rospy.logerr("Moving with control "+str(d))
+                current_fk_pose = self.get_limb_endpoint_pose()
+                current_true_pose = self._get_true_loc()
 
-                rospy.logerr("Goal for FK: " + str(goal))
-                rospy.logerr("FK location: "+str(current_pose["position"]))
-                rospy.logerr("True location: " + str(observation["achieved_goal"]))
+                current_pose = [current_fk_pose['position'].x, current_fk_pose['position'].y, current_fk_pose['position'].z] + fk_to_true
+                # current_pose = current_true_pose
+
+                # rospy.logerr("Goal for FK: " + str(goal))
+                # rospy.logerr("FK location: "+str(current_pose))
+
+                # rospy.logerr("True location: " + str(observation["achieved_goal"]))
                 
 
-                delta_x = (goal[0] - current_pose['position'].x) / d
+                delta_x = (goal[0] - current_pose[0])
+                delta_y = (goal[1] - current_pose[1])
+                delta_z = (goal[2] - current_pose[2]) / d
+
                 if abs(delta_x) < 1e-3: # numerical stability for IK
                     delta_x = 0.0
-                delta_y = (goal[1] - current_pose['position'].y) / d
-                if abs(delta_y) < 1e-3: # numerical stability for IK
+                elif abs(delta_x) > 0.04:
+                    delta_x = 0.04 * (2 * (delta_x > 0) - 1) # clip absolute value
+                
+                if abs(delta_y) < 1e-3:
                     delta_y = 0.0
-                delta_z = (goal[2] - current_pose['position'].z) / d
+                elif abs(delta_y) > 0.04:
+                    delta_y = 0.04 * (2 * (delta_y > 0) - 1)
+                
+                if abs(delta_z) < 1e-3:
+                    delta_z = 0.0
 
-                rospy.logerr(str(delta_x) + " " + str(delta_y) + " " + str(delta_z))
+                # For debugging
+                # rospy.logerr(str(delta_x) + " " + str(delta_y) + " " + str(delta_z))
 
                 ik_pose = Pose()
                 # ik_pose.position.x = current_pose['position'].x + delta_x
@@ -702,19 +756,19 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
 
                 if landing:
-                    ik_pose.position.x = current_pose['position'].x + (x_diff / steps) * (d == 1)
-                    ik_pose.position.y = current_pose['position'].y
-                    ik_pose.position.z = current_pose['position'].z - (self.hover_distance + 0.85 - 0.78) / steps
+                    ik_pose.position.x = current_fk_pose['position'].x + delta_x
+                    ik_pose.position.y = current_fk_pose['position'].y + delta_y
+                    ik_pose.position.z = current_fk_pose['position'].z + delta_z
                 else:
-                    ik_pose.position.x = current_pose['position'].x
-                    ik_pose.position.y = current_pose['position'].y
-                    ik_pose.position.z = current_pose['position'].z + lift_distance / steps
+                    ik_pose.position.x = current_fk_pose['position'].x
+                    ik_pose.position.y = current_fk_pose['position'].y
+                    ik_pose.position.z = current_fk_pose['position'].z + lift_distance / steps * 1.5
 
                 # No change in quaternion
-                ik_pose.orientation.w = current_pose['orientation'].w
-                ik_pose.orientation.x = current_pose['orientation'].x
-                ik_pose.orientation.y = current_pose['orientation'].y
-                ik_pose.orientation.z = current_pose['orientation'].z
+                ik_pose.orientation.w = current_fk_pose['orientation'].w
+                ik_pose.orientation.x = current_fk_pose['orientation'].x
+                ik_pose.orientation.y = current_fk_pose['orientation'].y
+                ik_pose.orientation.z = current_fk_pose['orientation'].z
             
                 joint_angles = self.request_limb_ik(ik_pose)
 
@@ -723,13 +777,10 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                     self.gazebo.pauseSim()
                     return False
                 else:
-                    rospy.logerr(str(joint_angles))
                     action_tuple = (joint_angles, 0) # no action on gripper
-                    rospy.logerr("Executing movement")
                     
                     self.execute_movement(action_tuple)
                     # self.limb.set_joint_positions(joint_angles)
-                    rospy.logerr("Movement is finished")
 
                     action_end_time = time.perf_counter()
                     time_spent = action_end_time - action_start_time
@@ -740,14 +791,18 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
             if landing == 1:
                 self.set_g(int(pick))
+                '''
                 if self.get_gripper_condition():
                     rospy.logerr("Gripper is holding an object")
                 else:
                     rospy.logerr("Gripper is not holding any object")
+                '''
                 goal[2] = goal[2] + lift_distance
                 rospy.sleep(0.5)
 
         self.gazebo.pauseSim()
+
+        # If observation["desired_goal"][2] >= 0.8, the picking and lifting is successful.
         
         return True
 
