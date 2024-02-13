@@ -1,7 +1,7 @@
 # Gym Sawyer
 
 ## Description
-*   `gym_sawyer` is ROS package that connects Sawyer Robotic Arm in Gazebo to OpenAI Gym, adapted from [OpenAI ROS](https://wiki.ros.org/openai_ros) package by *The Construct* ([their website](https://www.theconstructsim.com/)), depending on packages developed by [RethinkRobotics](https://github.com/RethinkRobotics).
+*   `gym_sawyer` is ROS package that connects Sawyer Robotic Arm in Gazebo to OpenAI Gym, adapted from [OpenAI ROS](https://wiki.ros.org/openai_ros) package by *The Construct* ([their website](https://www.theconstructsim.com/)), depending on packages developed by [Rethink Robotics](https://github.com/RethinkRobotics).
 *   This package includes a prepared OpenAI Gym environment.
 *   This package is a by-product of an undergraduate thesis project.
 
