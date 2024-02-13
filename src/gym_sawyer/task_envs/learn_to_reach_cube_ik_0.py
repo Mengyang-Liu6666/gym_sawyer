@@ -53,7 +53,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         self.reward_range = (-np.inf, np.inf)
         
         self.work_space_x_max = 1.1 # rospy.get_param("/sawyer/work_space/x_max")
-        self.work_space_x_min = 0.25 # rospy.get_param("/sawyer/work_space/x_min")
+        self.work_space_x_min = 0.15 # rospy.get_param("/sawyer/work_space/x_min")
         self.work_space_y_max = 0.75 # rospy.get_param("/sawyer/work_space/y_max")
         self.work_space_y_min = -0.75 # rospy.get_param("/sawyer/work_space/y_min")
         self.work_space_z_max = 0.65 + 0.838066 # rospy.get_param("/sawyer/work_space/z_max")
@@ -88,7 +88,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
         self.hover_distance = 0.10
         # self.hover_distance = 0.85 - 0.78
 
-        self.action_range = np.array([0.01, 0.01, 0.01]) # actual action space, (action_range/time_step) m/s
+        self.action_range = np.array([0.025, 0.025, 0.025]) # actual action space, (action_range/time_step) m/s
 
         # self.action_range = np.array([1.0, 1.0, 1.0]) # by real distance, for policies before 0124
 
@@ -132,8 +132,8 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
                                       self.work_space_y_max, 
                                       self.work_space_z_max])
         
-        self.block_space_min = np.array([0.60, -0.4])
-        self.block_space_max = np.array([0.85, 0.35])
+        self.block_space_min = np.array([0.27, -0.37])
+        self.block_space_max = np.array([0.83, 0.36])
 
         obs_space_dict = OrderedDict()
         obs_space_dict["observation"] = spaces.Box(joint_angle_min, joint_angle_max)
@@ -215,8 +215,15 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
             # model_state.pose.position.y = 0.206706 # 0.206706
             # model_state.pose.position.x = np.random.uniform(self.block_space_min[0], self.block_space_max[0])
             # model_state.pose.position.y = np.random.uniform(self.block_space_min[1], self.block_space_max[1])
-            model_state.pose.position.x = np.random.uniform(0.84, 0.89)
-            model_state.pose.position.y = np.random.uniform(-0.06, 0.33)
+
+            # Training
+            model_state.pose.position.x = np.random.uniform(0.27, 0.83)
+            model_state.pose.position.y = np.random.uniform(-0.37, 0.36)
+
+            # Testing
+            # model_state.pose.position.x = np.random.uniform(0.35, 0.75)
+            # model_state.pose.position.y = np.random.uniform(-0.29, 0.28)
+
             model_state.pose.position.z = 0.773 # Fixed
 
             model_state.pose.orientation.x = 0.0
@@ -557,6 +564,7 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
         if self.is_arm_stuck() or self.joint_too_fast or not(self.ik_solvable):
             return landing_reward - 20.0
+            # return -30.0
         elif reached_block: # Success
             # Start do land and pick
             # If picking is successful, give additional reward
@@ -736,13 +744,13 @@ class SawyerReachCubeIKEnv(SawyerEnvIK):
 
                 if abs(delta_x) < 1e-3: # numerical stability for IK
                     delta_x = 0.0
-                elif abs(delta_x) > 0.04:
-                    delta_x = 0.04 * (2 * (delta_x > 0) - 1) # clip absolute value
+                elif abs(delta_x) > 0.01:
+                    delta_x = 0.01 * (2 * (delta_x > 0) - 1) # clip absolute value
                 
                 if abs(delta_y) < 1e-3:
                     delta_y = 0.0
-                elif abs(delta_y) > 0.04:
-                    delta_y = 0.04 * (2 * (delta_y > 0) - 1)
+                elif abs(delta_y) > 0.01:
+                    delta_y = 0.01 * (2 * (delta_y > 0) - 1)
                 
                 if abs(delta_z) < 1e-3:
                     delta_z = 0.0

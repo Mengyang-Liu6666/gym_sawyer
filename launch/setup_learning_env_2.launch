@@ -1,0 +1,14 @@
+<launch>
+    <!-- Spawn Objects needed -->
+    <!-- <include file="$(find sawyer_sim_examples)/launch/spawn_block_table.launch"/> -->
+    <!-- Spawn Table -->
+    <!-- <include file="$(find gym_sawyer)/launch/spawn_table.launch"/> -->
+    <include file="$(find gym_sawyer)/launch/spawn_table_2.launch"/>
+
+    <!-- Spawn Block -->
+    <include file="$(find gym_sawyer)/launch/spawn_block.launch"/>
+
+    <!-- We start the Block Odom and TF publish for control purposes -->
+    <include file="$(find gym_sawyer)/launch/setup_block_systems_env.launch"/>
+
+</launch>
