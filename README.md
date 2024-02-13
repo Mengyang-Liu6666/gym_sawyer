@@ -46,11 +46,12 @@
     ./intera.sh sim
     roslaunch gym_sawyer learn_to_touch_cube.launch gui:=true
     ```
-*   Run the following in terminal 2 to launch the publisher nodes for blocks:
+*   Run the following in terminal 2 to lift the arm, place models and launch the publisher nodes for blocks:
     ```bash
     cd ~/ros_ws
     ./intera.sh sim
-    roslaunch gym_sawyer setup_learning_env.launch 
+    rosrun gym_sawyer init_robotic_arm.py
+    roslaunch gym_sawyer setup_learning_env_2.launch 
     ```
 
 *   Run the following in terminal 3 to launch the demo script:
