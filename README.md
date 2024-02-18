@@ -2,7 +2,7 @@
 
 ## Description
 *   `gym_sawyer` is ROS package that connects Sawyer Robotic Arm in Gazebo to OpenAI Gym, enabling training of deep reinforcement learning models.
-   *   It is adapted from [OpenAI ROS](https://wiki.ros.org/openai_ros) package by *The Construct* ([their website](https://www.theconstructsim.com/)), depending on packages developed by [Rethink Robotics](https://github.com/RethinkRobotics).
+    *   It is adapted from [OpenAI ROS](https://wiki.ros.org/openai_ros) package by *The Construct* ([their website](https://www.theconstructsim.com/)), depending on packages developed by [Rethink Robotics](https://github.com/RethinkRobotics).
 *   This package includes a prepared OpenAI Gym environment for picking blocks and a working policy.
     *   A video demo for the policy is [here](https://www.youtube.com/watch?v=7Xm8aioBz-k).
 *   This package is a by-product of an undergraduate thesis project at Queen's University.
