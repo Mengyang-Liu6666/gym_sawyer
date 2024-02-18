@@ -19,7 +19,7 @@ import rospkg
 # NEED MODIFICATIONS =========================
 
 from gym_sawyer.openai_ros_common import Start_ROS_Environment
-from stable_baselines3 import DDPG
+from stable_baselines3 import DDPG, TD3
 
 global FREQUENCY 
 FREQUENCY = 100 # Defaults to 100Hz command rate
@@ -34,7 +34,7 @@ def random_walk(t):
     # y = 0.2 * (2 * random.randint(0, 1) - 1)
     y = 0.0
     x = 0.0
-    z = -0.01
+    z = -1.0
     return [x, y, z]
 
 def policy(obs, t, device):
@@ -42,10 +42,8 @@ def policy(obs, t, device):
     if trivial:
         return random_walk(t)
     else:
-        # filename = "./logs/ddpg_fixed_1123_75000_steps"
-        # filename = "./logs/best_model"
-        filename = "./logs/ddpg_fixed_0116_5000_steps"
-        model = DDPG.load(filename, device=device)
+        filename = "./src/gym_sawyer/policies/td3_0217"
+        model = TD3.load(filename, device=device)
         action, _states = model.predict(obs)
         return action
 
@@ -113,7 +111,7 @@ if __name__ == '__main__':
 
     rospy.logdebug("Start Demo")
 
-    for episode in range(4): # 4 rounds for now
+    for episode in range(5): # 4 rounds for now
         rospy.logdebug("############### ROUND: " + str(episode+1))
 
         cumulated_reward = 0
@@ -159,7 +157,7 @@ if __name__ == '__main__':
                 last_time_steps = np.append(last_time_steps, [int(i + 1)])
 
                 # if env.is_success(observation):
-                #     env.pick_or_place(observation=observation, pick=True)
+                #     env.pick_or_place(achieved_goal=observation["achieved_goal"], desired_goal=observation["achieved_goal"], pick=True)
 
                 break            
 
