@@ -6,6 +6,7 @@ import time
 
 import torch
 
+from collections import OrderedDict
 
 # ROS packages required
 import rospy
@@ -14,6 +15,8 @@ import rospkg
 
 from stable_baselines3 import TD3
 from sim_to_real_pick_and_place import PseudoSawyerPickAndPlaceIKEnv
+
+from gym import spaces
 
 def policy(obs, model):
     # filename = "./logs/ddpg_fixed_1123_75000_steps"
@@ -139,7 +142,20 @@ if __name__ == '__main__':
     filename = "./logs/td3_0221_200000_steps" # select the correct policy
     # action space: [-1.0, 1.0], for xyz, unit: 0.025m
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    rospy.logerr("Running on " + str(device)) 
+    rospy.logerr("Running on " + str(device))
+
+    obs_space_dict = OrderedDict()
+    obs_space_dict["observation"] = spaces.Box(joint_angle_min, joint_angle_max)
+    obs_space_dict["achieved_goal"] = spaces.Box(work_space_min, work_space_max)
+    obs_space_dict["desired_goal"] = spaces.Box(work_space_min, work_space_max)
+
+    observation_space = spaces.Dict(obs_space_dict)
+
+    action_space_min = np.array([-1.0, -1.0, -1.0])
+    action_space_max = np.array([+1.0, +1.0, +1.0])
+
+    action_space = spaces.Box(action_space_min, action_space_max)
+
     model = TD3.load(filename, device=device)
 
     # True if using Gazebo:
