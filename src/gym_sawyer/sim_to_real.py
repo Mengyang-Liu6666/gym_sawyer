@@ -144,6 +144,14 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     rospy.logerr("Running on " + str(device))
 
+    joint_angle_max = np.array([0.020833, 3.0503,   2.2736,   3.0426,   3.0439,   2.9761,   2.9761])
+                                        
+    joint_angle_min = np.array([0.020833, 3.0503,   2.2736,   3.0426,   3.0439,   2.9761,   2.9761])
+        
+    work_space_min = np.array([0.15, -0.75, 0.78])
+        
+    work_space_max = np.array([1.1, 0.75, 0.65 + 0.838066])
+
     obs_space_dict = OrderedDict()
     obs_space_dict["observation"] = spaces.Box(joint_angle_min, joint_angle_max)
     obs_space_dict["achieved_goal"] = spaces.Box(work_space_min, work_space_max)
